@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from "vue";
-import type { CatalogIndex, ServiceName } from "../src/catalog/format";
+import type { ServiceName } from "../src/catalog/format";
+import { indexedDbStore, loadCatalog } from "../src/search/catalog-cache";
 import { createCatalogSearch, MIN_QUERY_LENGTH, type CatalogSearch } from "../src/search/catalog-search";
 
 const SERVICE_LABELS: Record<ServiceName, string> = {
@@ -32,9 +33,9 @@ const status = computed(() => {
 
 onMounted(async () => {
   try {
-    const res = await fetch("/api/catalog");
-    if (!res.ok) throw new Error(String(res.status));
-    catalog.value = createCatalogSearch((await res.json()) as CatalogIndex);
+    await loadCatalog((index) => {
+      catalog.value = createCatalogSearch(index);
+    }, indexedDbStore);
   } catch {
     loadError.value = true;
   }
