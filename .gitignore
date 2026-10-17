@@ -1,6 +1,9 @@
 .env
 .env.*
-!.env.example
-.dev.vars
 node_modules/
 dist/
+.void/
+.wrangler/
+.void-wrangler.jsonc
+*.tsbuildinfo
+.DS_Store

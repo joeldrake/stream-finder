@@ -32,7 +32,7 @@ SVT GraphQL (SVT Play) ───────────────────
 | B3 | SVT:s eget GraphQL-API är källa för SVT Play (hybrid) | Beslutat |
 | B4 | Katalogen uppdateras en gång per dygn | Beslutat |
 | B5 | Sökbiblioteket är MiniSearch, inte Fuse.js | Beslutat |
-| B6 | Stacken är Void (Vite + Cloudflare: Workers, D1, cron, köer, storage) med Vue | Preliminärt |
+| B6 | Stacken är Void (Vite+ + Cloudflare: Workers, D1, cron, köer, storage) med Vue | Beslutat |
 | B7 | Supabase används inte, åtminstone inte till att börja med | Preliminärt |
 | B8 | Titlar har egna id:n, inte TMDB-id som primärnyckel | Beslutat |
 
@@ -140,7 +140,15 @@ Det räcker för användningen och håller anropen till TMDB och SVT nere. Ett c
 ### B6–B7: Stack
 
 - **Void** bygger på Vite och deployar till Cloudflare. Det ger D1, storage, köer, schemalagda jobb och en Vue-adapter, och täcker därmed allt pipelinen behöver.
-- **Supabase** blir aktuellt först om vi behöver inloggning eller användardata (bevakningslistor, "mina tjänster"). Kontrollera i så fall först om det går att lösa i Void.
+- **Supabase** blir aktuellt först om vi behöver inloggning eller användardata (bevakningslistor, "mina tjänster"). Kontrollera i så fall först om det går att lösa i Void. Void har också en egen auth (`void/auth`).
+
+**Uppsättning (2026-10-17):**
+- Void 1.1.11 (släpptes 2026-10-15, alltså mycket nytt), `@void/vue`, Vite+ 1.3.0 (`vp dev`/`vp build`), pnpm 10.
+- Pages-läge: `pages/*.vue` med en `*.server.ts` bredvid för loaders. D1-schemat ligger i `db/schema.ts` (Drizzle) och migreringarna i `db/migrations/`.
+- Miljövariabler: schemat i `env.ts`, lokala värden i `.env`, produktionsvärden via `void secret put`. Void läser inte `.env.example`.
+- `void init` är interaktiv och väljer Cloudflare-deploy som standard, vilket startar en inloggning. Projektet scaffoldades därför med Voids interna `scaffoldPagesApp(root, 'pnpm', 'vue', 'sqlite', 'vite-plus')` följt av `void init --tsconfig`. Deploy-målet är inte valt än: kör `void deploy --platform cloudflare` första gången.
+- Void genererar `allowBuilds` i `pnpm-workspace.yaml`, men pnpm 10.10 läser bara `onlyBuiltDependencies`, så båda står med.
+- Vanliga kommandon: `pnpm dev`, `pnpm void db generate`, `pnpm void db migrate`, `pnpm void db seed`. Voids egen dokumentation finns lokalt i `node_modules/void/docs/`.
 
 ### B8: Egna id:n
 
@@ -187,12 +195,12 @@ En kompakt rad per titel: `[id, titel, originaltitel (tom om samma), år, popula
 - [ ] Hur många SVT-titlar matchar mot TMDB med strategin under B8?
 - [ ] Går de 333 titlarna som bara finns i `allTitlesForSearchIndexer` att se?
 - [ ] Hur många av TMDB:s titlar för Netflix, Disney+ och HBO Max är inaktuella, alltså samma problem som de 570 för SVT?
-- [ ] Hur sköter Void schemalagda jobb och köer i praktiken? Läs dokumentationen.
+- [x] Hur sköter Void schemalagda jobb och köer? Cron-jobb ligger i `crons/*.ts` (`export const cron` + `defineScheduled`), köer i `queues/*.ts` (`defineQueue<T>`) och skickas med `queues.<namn>.send()`. Lokalt triggas de via `POST /__void/scheduled` och `/__void/queue` med den token som dev-servern skriver ut. Det finns ingen dead-letter-kö som standard.
 - [ ] Var och hur visar vi attributionen till JustWatch och TMDB?
 
 ## Nästa steg
 
-1. Sätt upp ett Void-projekt med Vue.
+1. ~~Sätt upp ett Void-projekt med Vue.~~ Klart 2026-10-17: schemat `titles`/`availability` är migrerat och startsidan visar antal titlar.
 2. Inläsning: SVT-jobb, TMDB-jobb via kö, upsert till D1.
 3. Matchning mellan SVT och TMDB, och mät hur bra den blir.
 4. Bygg index och manifest.
