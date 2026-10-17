@@ -43,34 +43,49 @@ interface DiscoverResponse {
 
 export class TmdbRateLimitError extends Error {}
 
-function discoverRequest(apiKey: string, service: TmdbService, kind: TmdbKind, page: number): Request {
-  const params = new URLSearchParams({
-    watch_region: "SE",
-    with_watch_providers: String(TMDB_PROVIDERS[service]),
-    with_watch_monetization_types: "flatrate|free",
-    language: "sv-SE",
-    // Stabil ordning, så att titlar inte flyttar mellan sidor medan körningen pågår.
-    sort_by: kind === "movie" ? "original_title.asc" : "original_name.asc",
-    page: String(page),
-  });
+export async function tmdbGet<T>(
+  apiKey: string,
+  path: string,
+  query: Record<string, string>,
+  fetchFn: typeof fetch = fetch,
+): Promise<T> {
+  const params = new URLSearchParams(query);
   const headers: Record<string, string> = { accept: "application/json" };
   // Read Access Token (v4) skickas som Bearer, en v3-nyckel som parameter.
   if (apiKey.startsWith("eyJ")) headers.authorization = `Bearer ${apiKey}`;
   else params.set("api_key", apiKey);
-  return new Request(`https://api.themoviedb.org/3/discover/${kind}?${params}`, { headers });
+
+  const res = await fetchFn(new Request(`https://api.themoviedb.org/3${path}?${params}`, { headers }));
+  if (res.status === 429) throw new TmdbRateLimitError("TMDB rate limit");
+  if (!res.ok) throw new Error(`TMDB svarade ${res.status} för ${path}`);
+  return (await res.json()) as T;
 }
 
-export async function fetchDiscoverPage(
+export function fetchDiscoverPage(
   apiKey: string,
   service: TmdbService,
   kind: TmdbKind,
   page: number,
   fetchFn: typeof fetch = fetch,
 ): Promise<DiscoverResponse> {
-  const res = await fetchFn(discoverRequest(apiKey, service, kind, page));
-  if (res.status === 429) throw new TmdbRateLimitError("TMDB rate limit");
-  if (!res.ok) throw new Error(`TMDB svarade ${res.status} för ${service}/${kind} sida ${page}`);
-  return (await res.json()) as DiscoverResponse;
+  return tmdbGet<DiscoverResponse>(
+    apiKey,
+    `/discover/${kind}`,
+    {
+      watch_region: "SE",
+      with_watch_providers: String(TMDB_PROVIDERS[service]),
+      with_watch_monetization_types: "flatrate|free",
+      language: "sv-SE",
+      // Stabil ordning, så att titlar inte flyttar mellan sidor medan körningen pågår.
+      sort_by: kind === "movie" ? "original_title.asc" : "original_name.asc",
+      page: String(page),
+    },
+    fetchFn,
+  );
+}
+
+export function posterUrl(path: string | null | undefined): string | null {
+  return path ? `https://image.tmdb.org/t/p/w342${path}` : null;
 }
 
 // Ett meddelande per sida och kombination av tjänst och typ.
@@ -107,7 +122,7 @@ export function toCatalogRow(result: TmdbResult, kind: TmdbKind): CatalogRow {
     originalTitle: original && original !== title ? original : null,
     year: Number.isNaN(year) ? null : year,
     popularity: result.popularity ?? null,
-    poster: result.poster_path ? `https://image.tmdb.org/t/p/w342${result.poster_path}` : null,
+    poster: posterUrl(result.poster_path),
     tmdbId: result.id,
     svtId: null,
     url: null,

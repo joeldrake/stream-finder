@@ -28,3 +28,18 @@ export const availability = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.titleId, t.service] }), index("availability_service_idx").on(t.service)],
 );
+
+// Resultatet av att söka upp en SVT-titel i TMDB. Ligger separat från titles,
+// så att SVT-jobbets dagliga upsert inte skriver över det. tmdb_id är null när
+// sökningen inte gav någon träff; checked_at styr när vi söker igen.
+export const svtMatches = sqliteTable("svt_matches", {
+  svtId: text("svt_id").primaryKey(),
+  tmdbKind: text("tmdb_kind", { enum: ["movie", "tv"] }),
+  tmdbId: integer("tmdb_id"),
+  title: text("title"),
+  originalTitle: text("original_title"),
+  year: integer("year"),
+  poster: text("poster"),
+  popularity: real("popularity"),
+  checkedAt: text("checked_at").notNull(),
+});

@@ -12,7 +12,10 @@ export function testD1() {
   }
   const d1 = {
     prepare: (sql: string) => ({
-      bind: (...args: (string | number | null)[]) => ({ run: () => db.prepare(sql).run(...args) }),
+      bind: (...args: (string | number | null)[]) => ({
+        run: () => db.prepare(sql).run(...args),
+        all: async () => ({ results: db.prepare(sql).all(...args) }),
+      }),
     }),
     batch: async (statements: { run: () => unknown }[]) => {
       db.exec("BEGIN");
