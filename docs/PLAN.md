@@ -204,6 +204,7 @@ En kompakt rad per titel: `[id, titel, originaltitel (tom om samma), år, popula
 - [x] Hur sköter Void schemalagda jobb och köer? Cron-jobb ligger i `crons/*.ts` (`export const cron` + `defineScheduled`), köer i `queues/*.ts` (`defineQueue<T>`) och skickas med `queues.<namn>.send()`. Lokalt triggas de via `POST /__void/scheduled` och `/__void/queue` med den token som dev-servern skriver ut. Det finns ingen dead-letter-kö som standard.
 - [ ] Var och hur visar vi attributionen till JustWatch och TMDB?
 - [ ] Ska nyheter, sport och samhällsprogram från SVT (till exempel "Svenska nyheter" och "Bordtennis-EM") vara sökbara? I dag kommer de med. SVT:s `titleType` sparas inte, så om vi vill filtrera på typ måste den läggas till i schemat.
+- [ ] TMDB-titlar som saknar svensk översättning får originaltiteln som titel, ibland på hebreiska, koreanska och så vidare. Ska vi hämta den engelska titeln som reserv?
 - [ ] Workers CPU-gräns: gratisplanen har 10 ms CPU per anrop. Att tolka SVT:s ~2 MB JSON kan ta längre tid än så. Mät efter första deploy, och räkna med att Workers Paid kan behövas.
 
 **Tester:** kör `pnpm test`. Vitest använder [vitest.config.ts](../vitest.config.ts) utan `voidPlugin()`, eftersom Cloudflare-pluginet inte går att starta i Vitest. Importera från `vite-plus/test`, inte från `vitest`. SQL-upserten testas mot riktig SQLite (`node:sqlite`) med migrationerna i `db/migrations`.
@@ -220,7 +221,8 @@ curl -X POST http://localhost:5173/__void/scheduled -H "Content-Type: applicatio
 1. ~~Sätt upp ett Void-projekt med Vue.~~ Klart 2026-10-17: schemat `titles`/`availability` är migrerat och startsidan visar antal titlar.
 2. Inläsning: SVT-jobb, TMDB-jobb via kö, upsert till D1.
    - ~~SVT-jobbet~~ Klart 2026-10-17: [crons/ingest-svt.ts](../crons/ingest-svt.ts) körs 04:00 UTC, logiken ligger i [src/ingest/svt.ts](../src/ingest/svt.ts). Upsert sker med `json_each`, så att en hel chunk om 1 000 rader går i en fråga. Det håller nere antalet D1-frågor per körning. En lokal körning tar ~0,7 s.
-   - TMDB-jobbet via kö.
+   - ~~TMDB-jobbet via kö~~ Klart 2026-10-17: [crons/ingest-tmdb.ts](../crons/ingest-tmdb.ts) körs 04:15 UTC. Det hämtar sida 1 för varje kombination av tjänst och typ och lägger alla sidor på kön `tmdb-pages` med `sendBatch` (max 100 per anrop). [queues/tmdb-pages.ts](../queues/tmdb-pages.ts) hämtar 10 sidor per batch och sparar dem. Sidor som misslyckas försöks igen, efter 10 s vid 429 och annars efter 30 s. Logiken ligger i [src/ingest/tmdb.ts](../src/ingest/tmdb.ts). Sorteringen är `original_title.asc`/`original_name.asc` i stället för popularitet, så att titlar inte flyttar mellan sidor under körningen. Posters sparas som full URL (`w342`).
+   - **Första lokala körningen:** 748 sidor gick igenom på ~2 minuter utan fel eller 429. Netflix 9 208, Disney+ 3 485 och HBO Max 2 217 stämmer exakt med TMDB:s totaler. Tillsammans med SVT blev det 18 316 titlar, varav 553 finns på mer än en tjänst. SVT:s titlar är ännu inte matchade mot TMDB, se steg 3.
 3. Matchning mellan SVT och TMDB, och mät hur bra den blir.
 4. Bygg index och manifest.
 5. Vue-klient med IndexedDB och MiniSearch.

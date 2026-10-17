@@ -1,7 +1,3 @@
-/// <reference types="node" />
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vite-plus/test";
 import { upsertCatalog } from "./catalog";
 import {
@@ -12,6 +8,7 @@ import {
   toCatalogRow,
   type SvtContent,
 } from "./svt";
+import { testD1 } from "./test-d1";
 
 const NOW = new Date("2026-10-17T12:00:00Z");
 
@@ -29,32 +26,6 @@ function svt(overrides: Partial<SvtContent> = {}): SvtContent {
     validTo: "2027-01-12T23:59:00+01:00",
     ...overrides,
   };
-}
-
-// D1-liknande adapter över node:sqlite, med schemat från db/migrations.
-function testD1() {
-  const db = new DatabaseSync(":memory:");
-  const dir = join(import.meta.dirname, "../../db/migrations");
-  for (const file of readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {
-    db.exec(readFileSync(join(dir, file), "utf8"));
-  }
-  const d1 = {
-    prepare: (sql: string) => ({
-      bind: (...args: (string | number | null)[]) => ({ run: () => db.prepare(sql).run(...args) }),
-    }),
-    batch: async (statements: { run: () => unknown }[]) => {
-      db.exec("BEGIN");
-      try {
-        for (const s of statements) s.run();
-        db.exec("COMMIT");
-      } catch (e) {
-        db.exec("ROLLBACK");
-        throw e;
-      }
-      return [];
-    },
-  } as unknown as D1Database;
-  return { db, d1 };
 }
 
 function svtResponse(atillo: SvtContent[], indexer: SvtContent[] = []) {
