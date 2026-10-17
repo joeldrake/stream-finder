@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, shallowRef } from "vue";
+import { computed, onMounted, reactive, ref, shallowRef } from "vue";
 import type { ServiceName } from "../src/catalog/format";
+import { registerServiceWorker } from "../src/register-sw";
 import { indexedDbStore, loadCatalog } from "../src/search/catalog-cache";
 import { createCatalogSearch, MIN_QUERY_LENGTH, type CatalogSearch } from "../src/search/catalog-search";
 
@@ -16,6 +17,8 @@ const focused = ref(false);
 const input = ref<HTMLInputElement>();
 const catalog = shallowRef<CatalogSearch>();
 const loadError = ref(false);
+// Bilder som inte gick att ladda, till exempel offline: visa initialen i stället.
+const brokenPosters = reactive(new Set<string>());
 
 // Sökrutan ligger i mitten tills man fokuserar den eller har skrivit något.
 const active = computed(() => focused.value || query.value.length > 0);
@@ -32,6 +35,8 @@ const status = computed(() => {
 });
 
 onMounted(async () => {
+  void registerServiceWorker();
+  window.addEventListener("online", () => brokenPosters.clear());
   try {
     await loadCatalog((index) => {
       catalog.value = createCatalogSearch(index);
@@ -75,7 +80,14 @@ function clear() {
     <ul v-if="active && !tooShort && results.length" class="results">
       <li v-for="hit in results" :key="hit.id" class="card">
         <div class="poster">
-          <img v-if="hit.poster" :src="hit.poster" alt="" loading="lazy" decoding="async" />
+          <img
+            v-if="hit.poster && !brokenPosters.has(hit.poster)"
+            :src="hit.poster"
+            alt=""
+            loading="lazy"
+            decoding="async"
+            @error="brokenPosters.add(hit.poster)"
+          />
           <span v-else class="placeholder" aria-hidden="true">{{ hit.title.slice(0, 1) }}</span>
         </div>
         <div class="meta">
