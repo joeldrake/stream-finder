@@ -100,7 +100,13 @@ Dessutom pekar 570 av TMDB:s 2 323 SVT-titlar på titlar som inte finns i SVT:s 
 | `programAtillO { flat { … } }` | 3 846 | ~0,8 s |
 | `allTitlesForSearchIndexer { … }` | 4 116 | ~0,6 s |
 
-Vi använder unionen av båda, cirka 4 200 titlar. Det är ännu inte kontrollerat om de 333 titlar som bara finns i `allTitlesForSearchIndexer` faktiskt går att se.
+Vi använder unionen av båda, cirka 4 200 titlar, hämtade i en och samma GraphQL-fråga (~2 MB utan avsnittslistor). Båda listorna innehåller titlar som inte går att se, så de filtreras:
+- **Filmer (`Single`):** `validTo` måste ligga i framtiden.
+- **Serier (övriga typer):** `numberOfActiveEpisodes` måste vara större än 0.
+
+Efter filtret återstår **3 972 titlar** (2026-10-17). Av de 333 extra titlarna från `allTitlesForSearchIndexer` var flera utgångna filmer eller serier utan avsnitt, och A–Ö innehöll själv 92 serier med 0 aktiva avsnitt.
+
+Bilder finns som `https://www.svtstatic.se/image/custom/{bredd}/{image.id}/{image.changed}`. Det är liggande bilder, inte affischer.
 
 Användbara fält på `Content`/`Single`: `svtId`, `name`, `titleType`, `urls.svtplay`, `genres`, `countriesOfOrigin`, `popularity`, `barn`, `oppetArkiv`, och för `Single` även `productionYear`, `originalProgramTitle` och `validTo`. För serier finns år och `validTo` per avsnitt via `episodes`.
 
@@ -197,11 +203,24 @@ En kompakt rad per titel: `[id, titel, originaltitel (tom om samma), år, popula
 - [ ] Hur många av TMDB:s titlar för Netflix, Disney+ och HBO Max är inaktuella, alltså samma problem som de 570 för SVT?
 - [x] Hur sköter Void schemalagda jobb och köer? Cron-jobb ligger i `crons/*.ts` (`export const cron` + `defineScheduled`), köer i `queues/*.ts` (`defineQueue<T>`) och skickas med `queues.<namn>.send()`. Lokalt triggas de via `POST /__void/scheduled` och `/__void/queue` med den token som dev-servern skriver ut. Det finns ingen dead-letter-kö som standard.
 - [ ] Var och hur visar vi attributionen till JustWatch och TMDB?
+- [ ] Ska nyheter, sport och samhällsprogram från SVT (till exempel "Svenska nyheter" och "Bordtennis-EM") vara sökbara? I dag kommer de med. SVT:s `titleType` sparas inte, så om vi vill filtrera på typ måste den läggas till i schemat.
+- [ ] Workers CPU-gräns: gratisplanen har 10 ms CPU per anrop. Att tolka SVT:s ~2 MB JSON kan ta längre tid än så. Mät efter första deploy, och räkna med att Workers Paid kan behövas.
+
+**Tester:** kör `pnpm test`. Vitest använder [vitest.config.ts](../vitest.config.ts) utan `voidPlugin()`, eftersom Cloudflare-pluginet inte går att starta i Vitest. Importera från `vite-plus/test`, inte från `vitest`. SQL-upserten testas mot riktig SQLite (`node:sqlite`) med migrationerna i `db/migrations`.
+
+**Köra ett cron-jobb lokalt:** med `pnpm dev` igång:
+```
+curl -X POST http://localhost:5173/__void/scheduled -H "Content-Type: application/json" \
+  -H "x-void-dev-trigger: $(cat .void/dev-trigger-token)" \
+  -d '{"cron":"0 4 * * *","scheduledTime":'"$(date +%s000)"'}'
+```
 
 ## Nästa steg
 
 1. ~~Sätt upp ett Void-projekt med Vue.~~ Klart 2026-10-17: schemat `titles`/`availability` är migrerat och startsidan visar antal titlar.
 2. Inläsning: SVT-jobb, TMDB-jobb via kö, upsert till D1.
+   - ~~SVT-jobbet~~ Klart 2026-10-17: [crons/ingest-svt.ts](../crons/ingest-svt.ts) körs 04:00 UTC, logiken ligger i [src/ingest/svt.ts](../src/ingest/svt.ts). Upsert sker med `json_each`, så att en hel chunk om 1 000 rader går i en fråga. Det håller nere antalet D1-frågor per körning. En lokal körning tar ~0,7 s.
+   - TMDB-jobbet via kö.
 3. Matchning mellan SVT och TMDB, och mät hur bra den blir.
 4. Bygg index och manifest.
 5. Vue-klient med IndexedDB och MiniSearch.
