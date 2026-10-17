@@ -12,6 +12,7 @@ export function testD1() {
   }
   const d1 = {
     prepare: (sql: string) => ({
+      all: async () => ({ results: db.prepare(sql).all() }),
       bind: (...args: (string | number | null)[]) => ({
         run: () => db.prepare(sql).run(...args),
         all: async () => ({ results: db.prepare(sql).all(...args) }),

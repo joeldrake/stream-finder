@@ -23,6 +23,8 @@ function row(overrides: Partial<CatalogRowWithMatch>): CatalogRowWithMatch {
     matchYear: null,
     matchPoster: null,
     matchPopularity: null,
+    imdbRating: null,
+    imdbVotes: null,
     ...overrides,
   };
 }
@@ -76,7 +78,7 @@ describe("mergeCatalog", () => {
       ],
       V,
     );
-    expect(items[0]).toEqual(["tmdb:tv:5", "Macklean", "", 1993, 1, 2, 1, "t/m.jpg", "/macklean"]);
+    expect(items[0]).toEqual(["tmdb:tv:5", "Macklean", "", 1993, 1, 2, 1, "t/m.jpg", "/macklean", 0]);
   });
 
   it("behåller omatchade SVT-titlar med SVT:s bild och halverad popularitet", () => {
@@ -93,7 +95,7 @@ describe("mergeCatalog", () => {
       ],
       V,
     );
-    expect(items[0]).toMatchObject(["svt:xyz", "Svenska nyheter", "", 2020, 1, 40, 1, "s1/2", ""]);
+    expect(items[0]).toMatchObject(["svt:xyz", "Svenska nyheter", "", 2020, 1, 40, 1, "s1/2", "", 0]);
   });
 
   it("samlar alternativa titlar utan dubbletter av huvudtiteln", () => {
@@ -102,6 +104,32 @@ describe("mergeCatalog", () => {
       V,
     );
     expect(items[0][2]).toBe("PAW Patrol: Ready Race Rescue");
+  });
+});
+
+describe("IMDb-betyg i katalogen", () => {
+  it("tar med betyg med tillräckligt många röster, som heltal × 10", () => {
+    const { items } = mergeCatalog(
+      [
+        row({ id: "tmdb:movie:1", imdbRating: 8.0, imdbVotes: 900_000 }),
+        row({ id: "tmdb:movie:2", imdbRating: 9.9, imdbVotes: 12 }),
+        row({ id: "tmdb:movie:3" }),
+      ],
+      V,
+    );
+    expect(items.map((i) => i[9])).toEqual([80, 0, 0]);
+  });
+
+  it("ger en SVT-titel som slås ihop betyget från TMDB-titeln", () => {
+    const { items } = mergeCatalog(
+      [
+        row({ id: "tmdb:tv:7", kind: "series", imdbRating: 7.4, imdbVotes: 5000 }),
+        row({ id: "svt:abc", kind: "series", services: "svt", matchKind: "tv", matchId: 7, imdbRating: 7.4, imdbVotes: 5000 }),
+      ],
+      V,
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0][9]).toBe(74);
   });
 });
 
@@ -135,6 +163,12 @@ describe("createCatalogSearch", () => {
   it("tolererar inte stavfel i korta ord men väl i långa", () => {
     expect(search.search("dune").map((h) => h.title)).toEqual(["Dune"]);
     expect(search.search("intersteller").map((h) => h.title)).toEqual(["Interstellar"]);
+  });
+
+  it("ger betyget som decimaltal och null när det saknas", () => {
+    const rated = createCatalogSearch(mergeCatalog([row({ title: "Dune", imdbRating: 8.0, imdbVotes: 900_000 })], V));
+    expect(rated.search("dune")[0].imdbRating).toBe(8);
+    expect(search.search("dune")[0].imdbRating).toBeNull();
   });
 
   it("bortser från å, ä och ö", () => {

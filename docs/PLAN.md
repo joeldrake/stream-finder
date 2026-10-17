@@ -164,6 +164,26 @@ SVT-titlar saknar ofta TMDB-motsvarighet, så id:n är oberoende av källan:
 
 **Matchning SVT ↔ TMDB:** i första hand originaltitel + år, i andra hand svensk titel + år, och för filmer typen `Single`, för serier övriga typer. Vid träff slås SVT:s tillgänglighet ihop med TMDB-titeln, så att posters och övriga tjänster följer med. Utan träff blir det en egen SVT-post. Hur bra matchningen blir är inte mätt än.
 
+## IMDb-betyg (2026-10-17)
+
+**Beslut:** IMDb-betyg hämtas från IMDb:s datafiler, som är gratis för personligt och icke-kommersiellt bruk (https://data.imdb.com/non-commercial-datasets/). Rotten Tomatoes väntar: de har inget öppet API, och via OMDb blir datat ofullständigt och kostar lite pengar.
+
+**Varför ett lokalt skript:** `title.ratings.tsv.gz` är 8,7 MB komprimerad och ~25 MB text (1,7 miljoner rader). En gzip-fil kan inte delas upp, så den måste läsas i ett enda anrop, och det tar mer CPU än Workers gratisplan tillåter (10 ms). Det CPU-tunga steget körs därför utanför Workern, och betygen ändras ändå långsamt.
+
+| Steg | Var | Fil |
+|---|---|---|
+| Hämta IMDb-id för nya TMDB-titlar (`/{kind}/{id}/external_ids`) | Workern: cron 04:45 + kön `imdb-ids` | [src/ingest/imdb.ts](../src/ingest/imdb.ts) |
+| Ladda ned IMDb-filen och filtrera på våra id:n | **Din dator:** `pnpm ratings:update` | [scripts/update-ratings.ts](../scripts/update-ratings.ts) |
+| Spara betygen | Workern: `POST /api/admin/ratings` | [routes/api/admin/ratings.ts](../routes/api/admin/ratings.ts) |
+
+- Tabellen `imdb_ratings` är nycklad på TMDB-titel (`tmdb:movie:123`). Den omfattar både TMDB-titlar och SVT-titlar som matchats mot TMDB.
+- `/api/admin/*` skyddas med `ADMIN_TOKEN` (minst 32 tecken, jämförs i konstant tid). Lokalt ligger den i `.env`. I produktion: `pnpm void secret put ADMIN_TOKEN`.
+- Mot produktion: `STREAM_FINDER_URL=https://… ADMIN_TOKEN=… pnpm ratings:update`. Värden i miljön har företräde framför `.env`.
+- Ungefär 90 % av TMDB-titlarna har ett IMDb-id (stickprov: 28/30 filmer och 27/30 serier).
+- Katalogen får ett tionde fält: betyget × 10 som heltal, där 0 betyder att betyg saknas. Betyg med färre än 50 röster tas inte med (`MIN_IMDB_VOTES`).
+- UI:t visar "★ 7,4" på korten. En sidfot i viloläget anger datakällorna (JustWatch via TMDB, SVT Play och IMDb) och innehåller TMDB:s obligatoriska text.
+- **Senare:** samma skript kan köras nattligen av GitHub Actions, när repot ligger på GitHub.
+
 ## Datamodell (utkast, D1)
 
 ```sql
@@ -202,7 +222,8 @@ En kompakt rad per titel: `[id, titel, originaltitel (tom om samma), år, popula
 - [ ] Går de 333 titlarna som bara finns i `allTitlesForSearchIndexer` att se?
 - [ ] Hur många av TMDB:s titlar för Netflix, Disney+ och HBO Max är inaktuella, alltså samma problem som de 570 för SVT?
 - [x] Hur sköter Void schemalagda jobb och köer? Cron-jobb ligger i `crons/*.ts` (`export const cron` + `defineScheduled`), köer i `queues/*.ts` (`defineQueue<T>`) och skickas med `queues.<namn>.send()`. Lokalt triggas de via `POST /__void/scheduled` och `/__void/queue` med den token som dev-servern skriver ut. Det finns ingen dead-letter-kö som standard.
-- [ ] Var och hur visar vi attributionen till JustWatch och TMDB?
+- [x] Var och hur visar vi attributionen till JustWatch och TMDB? I en sidfot i viloläget, se avsnittet IMDb-betyg. TMDB:s logotyp saknas fortfarande; kontrollera deras krav på attribution före lansering.
+- [ ] Kräver IMDb attribution? Datasidan säger inget, men licenssidan bör kontrolleras. Sidfoten anger redan "Betyg från IMDb".
 - [ ] Ska nyheter, sport och samhällsprogram från SVT (till exempel "Svenska nyheter" och "Bordtennis-EM") vara sökbara? I dag kommer de med. SVT:s `titleType` sparas inte, så om vi vill filtrera på typ måste den läggas till i schemat.
 - [ ] TMDB-titlar som saknar svensk översättning får originaltiteln som titel, ibland på hebreiska, koreanska och så vidare. Ska vi hämta den engelska titeln som reserv?
 - [ ] Indexet blev 895 kB med gzip i stället för de uppskattade ~400 kB. Det är poster-hasharna från TMDB som inte går att komprimera. Möjliga åtgärder: korta id:n (`tmdb:movie:` → `m`), eller dela upp i ett sökindex som laddas först och posters som laddas efteråt.

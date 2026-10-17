@@ -46,6 +46,8 @@ onMounted(async () => {
   }
 });
 
+const formatRating = (rating: number) => rating.toLocaleString("sv-SE", { minimumFractionDigits: 1 });
+
 function clear() {
   query.value = "";
   input.value?.blur();
@@ -94,6 +96,9 @@ function clear() {
           <h2 class="title">{{ hit.title }}</h2>
           <p class="sub">
             {{ hit.series ? "Serie" : "Film" }}<template v-if="hit.year"> · {{ hit.year }}</template>
+            <span v-if="hit.imdbRating" class="rating" :title="`IMDb-betyg ${formatRating(hit.imdbRating)}`">
+              · <span aria-hidden="true">★</span> {{ formatRating(hit.imdbRating) }}</span
+            >
           </p>
           <ul class="services">
             <li v-for="s in hit.services" :key="s">
@@ -112,6 +117,13 @@ function clear() {
         </div>
       </li>
     </ul>
+
+    <footer class="credits">
+      Tillgänglighet från <a href="https://www.justwatch.com/se" rel="noopener">JustWatch</a> via
+      <a href="https://www.themoviedb.org" rel="noopener">TMDB</a> och från SVT Play. Betyg från
+      <a href="https://www.imdb.com" rel="noopener">IMDb</a>. Den här tjänsten använder TMDB:s API men är inte
+      godkänd eller certifierad av TMDB.
+    </footer>
   </main>
 </template>
 
@@ -316,6 +328,37 @@ input::-webkit-search-cancel-button {
   margin: 2px 0 6px;
   color: var(--muted);
   font-size: 0.8rem;
+}
+
+.rating {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.rating [aria-hidden] {
+  color: #e0a100;
+}
+
+.credits {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-align: center;
+  transition: opacity 0.3s ease;
+}
+
+.credits a {
+  color: inherit;
+}
+
+/* Sidfoten syns bara i viloläget, så att den inte ligger över resultaten. */
+.active .credits {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .services {

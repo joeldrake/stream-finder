@@ -5,8 +5,9 @@ export const SERVICES = ["svt", "netflix", "disney", "hbomax"] as const;
 export type ServiceName = (typeof SERVICES)[number];
 
 // [id, titel, alternativa titlar, år (0 = okänt), 0 = film / 1 = serie,
-//  popularitet, tjänster som bitmask, poster (komprimerad), SVT-sökväg]
-export type CatalogItem = [string, string, string, number, 0 | 1, number, number, string, string];
+//  popularitet, tjänster som bitmask, poster (komprimerad), SVT-sökväg,
+//  IMDb-betyg × 10 (0 = saknas)]
+export type CatalogItem = [string, string, string, number, 0 | 1, number, number, string, string, number];
 
 export interface CatalogIndex {
   version: string;

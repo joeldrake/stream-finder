@@ -13,6 +13,7 @@ export interface SearchHit {
   services: ServiceName[];
   poster: string | null;
   svtUrl: string | null;
+  imdbRating: number | null;
 }
 
 // "Åberg", "aberg" och "ÅBERG" ska ge samma sökterm.
@@ -57,7 +58,7 @@ export function createCatalogSearch(index: CatalogIndex): CatalogSearch {
         .search(query)
         .slice(0, MAX_RESULTS)
         .map(({ id }) => {
-          const [itemId, title, alts, year, series, , services, poster, svtPath] = items[id as number];
+          const [itemId, title, alts, year, series, , services, poster, svtPath, imdb] = items[id as number];
           return {
             id: itemId,
             title,
@@ -67,6 +68,8 @@ export function createCatalogSearch(index: CatalogIndex): CatalogSearch {
             services: servicesOf(services),
             poster: expandPoster(poster),
             svtUrl: svtPath ? `https://www.svtplay.se${svtPath}` : null,
+            // Saknas i kataloger som cachades innan betygen fanns.
+            imdbRating: imdb ? imdb / 10 : null,
           };
         });
     },

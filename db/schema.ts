@@ -43,3 +43,19 @@ export const svtMatches = sqliteTable("svt_matches", {
   popularity: real("popularity"),
   checkedAt: text("checked_at").notNull(),
 });
+
+// IMDb-betyg per TMDB-titel ("tmdb:movie:123"). IMDb-id:t hämtas från TMDB
+// av Workern (imdb_id är null om TMDB saknar det); betygen laddas upp av
+// scripts/update-ratings.ts, som körs utanför Workern (se docs/PLAN.md).
+export const imdbRatings = sqliteTable(
+  "imdb_ratings",
+  {
+    tmdbKey: text("tmdb_key").primaryKey(),
+    imdbId: text("imdb_id"),
+    checkedAt: text("checked_at").notNull(),
+    rating: real("rating"),
+    votes: integer("votes"),
+    ratedAt: text("rated_at"),
+  },
+  (t) => [index("imdb_ratings_imdb_id_idx").on(t.imdbId)],
+);

@@ -17,6 +17,8 @@ export interface CatalogRowWithMatch {
   matchYear: number | null;
   matchPoster: string | null;
   matchPopularity: number | null;
+  imdbRating: number | null;
+  imdbVotes: number | null;
 }
 
 const QUERY = `
@@ -26,11 +28,23 @@ SELECT
   max(CASE WHEN a.service = 'svt' THEN a.url END) AS svtUrl,
   m.tmdb_kind AS matchKind, m.tmdb_id AS matchId, m.title AS matchTitle,
   m.original_title AS matchOriginalTitle, m.year AS matchYear, m.poster AS matchPoster,
-  m.popularity AS matchPopularity
+  m.popularity AS matchPopularity,
+  r.rating AS imdbRating, r.votes AS imdbVotes
 FROM titles t
 JOIN availability a ON a.title_id = t.id
 LEFT JOIN svt_matches m ON m.svt_id = t.svt_id
+LEFT JOIN imdb_ratings r ON r.tmdb_key = CASE
+  WHEN t.id LIKE 'tmdb:%' THEN t.id
+  WHEN m.tmdb_id IS NOT NULL THEN 'tmdb:' || m.tmdb_kind || ':' || m.tmdb_id
+END
 GROUP BY t.id`;
+
+// Betyg med färre röster än så här är för osäkra för att visas.
+export const MIN_IMDB_VOTES = 50;
+
+function imdbScore(r: CatalogRowWithMatch): number {
+  return r.imdbRating != null && (r.imdbVotes ?? 0) >= MIN_IMDB_VOTES ? Math.round(r.imdbRating * 10) : 0;
+}
 
 // SVT:s popularitet ligger på en annan skala än TMDB:s; den här faktorn
 // används bara för SVT-titlar som saknar TMDB-matchning.
@@ -46,6 +60,7 @@ interface Draft {
   services: number;
   poster: string | null;
   svtPath: string;
+  imdb: number;
 }
 
 function servicesMask(services: string): number {
@@ -74,6 +89,7 @@ export function mergeCatalog(rows: CatalogRowWithMatch[], version: string): Cata
       services: servicesMask(r.services),
       poster: r.poster,
       svtPath: "",
+      imdb: imdbScore(r),
     });
   }
 
@@ -86,6 +102,7 @@ export function mergeCatalog(rows: CatalogRowWithMatch[], version: string): Cata
     if (existing) {
       existing.services |= servicesMask(r.services);
       existing.svtPath ||= svtPath(r.svtUrl);
+      existing.imdb ||= imdbScore(r);
       for (const t of svtTitles) existing.alts.add(t);
       continue;
     }
@@ -100,6 +117,7 @@ export function mergeCatalog(rows: CatalogRowWithMatch[], version: string): Cata
       // TMDB har stående affischer; SVT bara liggande bilder.
       poster: r.matchPoster ?? r.poster,
       svtPath: svtPath(r.svtUrl),
+      imdb: imdbScore(r),
     });
   }
 
@@ -115,6 +133,7 @@ export function mergeCatalog(rows: CatalogRowWithMatch[], version: string): Cata
       d.services,
       compressPoster(d.poster),
       d.svtPath,
+      d.imdb,
     ];
   });
   return { version, items };

@@ -6,7 +6,8 @@
     "dev": "vp dev",
     "build": "vp build",
     "preview": "vp preview",
-    "test": "vp test"
+    "test": "vp test",
+    "ratings:update": "node --env-file=.env scripts/update-ratings.ts"
   },
   "dependencies": {
     "hono": "^4.11.9",
