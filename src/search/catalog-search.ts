@@ -13,7 +13,15 @@ export interface SearchHit {
   services: ServiceName[];
   poster: string | null;
   svtUrl: string | null;
+  // Sidan som öppnas när man klickar på träffen: SVT Play om det går, annars TMDB.
+  url: string | null;
   imdbRating: number | null;
+}
+
+// Matchade titlar har id:n som "tmdb:movie:603" eller "tmdb:tv:1399".
+function tmdbUrl(id: string): string | null {
+  const m = /^tmdb:(movie|tv):(\d+)$/.exec(id);
+  return m ? `https://www.themoviedb.org/${m[1]}/${m[2]}` : null;
 }
 
 // "Åberg", "aberg" och "ÅBERG" ska ge samma sökterm.
@@ -70,6 +78,7 @@ export function createCatalogSearch(index: CatalogIndex): CatalogSearch {
         .slice(0, MAX_RESULTS)
         .map(({ id }) => {
           const [itemId, title, alts, year, series, , services, poster, svtPath, imdb] = items[id as number];
+          const svtUrl = svtPath ? `https://www.svtplay.se${svtPath}` : null;
           return {
             id: itemId,
             title,
@@ -78,7 +87,8 @@ export function createCatalogSearch(index: CatalogIndex): CatalogSearch {
             series: series === 1,
             services: servicesOf(services),
             poster: expandPoster(poster),
-            svtUrl: svtPath ? `https://www.svtplay.se${svtPath}` : null,
+            svtUrl,
+            url: svtUrl ?? tmdbUrl(itemId),
             // Saknas i kataloger som cachades innan betygen fanns.
             imdbRating: imdb ? imdb / 10 : null,
           };

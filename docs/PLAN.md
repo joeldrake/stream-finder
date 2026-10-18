@@ -134,7 +134,8 @@ Exempelfråga:
 
 Först var planen ett cron-jobb per dygn. **Ändrat 2026-10-18:** inga cron-jobb. Synkningen startas med en knapp i UI:t, så att den bara körs när man själv vill. Knappen ligger i sidfoten bredvid antalet titlar per tjänst och datumet då katalogen senast byggdes (båda räknas ur katalogen i webbläsaren).
 
-- `POST /api/sync` startar en synkning, och `GET /api/sync` visar status. Bara en körning åt gången (annars 409). Ingen inloggning krävs.
+- `POST /api/sync` startar en synkning, och `GET /api/sync` visar status. Bara en körning åt gången (annars 409).
+- **PIN-kod:** `POST /api/sync` kräver `{ "pin": "…" }` som stämmer med hemligheten `SYNC_PIN` (exakt 4 tecken; lokalt i `.env`, i produktion `pnpm void secret put SYNC_PIN`). Saknas den eller har fel längd nekas alla synkningar. Knappen öppnar ett litet PIN-fält, och synkningen startar när fjärde tecknet skrivs. Fel kod ger 403. Efter 5 fel inom en timme spärras synkningen för alla (429) tills det äldsta felet är en timme gammalt; felen räknas i tabellen `sync_pin_failures`. Spärren gör gissning långsam (10 000 sifferkoder tar veckor), men den kan också låsa ute en själv i upp till en timme. Se [src/sync-pin.ts](../src/sync-pin.ts).
 - Varje körning är en rad i `sync_runs` med tre steg: **fetch** (SVT läses in direkt; TMDB-sidorna och SVT-matchningen köas), **imdb** (IMDb-id köas) och **publish** (katalogen byggs). `pending` räknar kömeddelanden som återstår i steget. Köerna räknar ned när meddelanden kvitteras eller gör sitt sista försök, och när räknaren når 0 startar nästa steg. Se [src/sync.ts](../src/sync.ts).
 - Misslyckas SVT körs resten ändå; felet sparas i `sync_runs.error` och visas diskret i UI:t.
 - En körning som inte blivit klar efter 3 timmar räknas som avbruten, och då kan en ny startas.
@@ -240,7 +241,7 @@ En kompakt rad per titel: `[id, titel, originaltitel (tom om samma), år, popula
 
 **Synka lokalt:** med `pnpm dev` igång, tryck på knappen i sidfoten eller kör:
 ```
-curl -X POST http://localhost:5173/api/sync   # starta
+curl -X POST http://localhost:5173/api/sync -H 'content-type: application/json' -d '{"pin":"…"}'   # starta
 curl http://localhost:5173/api/sync           # status
 ```
 

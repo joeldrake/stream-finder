@@ -33,7 +33,6 @@ const status = computed(() => {
   if (!active.value) return `${catalog.value.size.toLocaleString("sv-SE")} filmer och serier`;
   if (tooShort.value) return "Skriv minst två tecken";
   if (results.value.length === 0) return `Inga träffar på ”${query.value.trim()}”`;
-  if (results.value.length) return `Visar ${results.value.length} sökträffar`;
   return "";
 });
 
@@ -177,19 +176,27 @@ function clear() {
 
     <ul v-if="active && !tooShort && results.length" class="results">
       <li v-for="hit in results" :key="hit.id" class="card">
-        <div class="poster">
-          <img
-            v-if="hit.poster && !brokenPosters.has(hit.poster)"
-            :src="hit.poster"
-            alt=""
-            loading="lazy"
-            decoding="async"
-            @error="brokenPosters.add(hit.poster)"
-          />
-          <span v-else class="placeholder" aria-hidden="true">{{ hit.title.slice(0, 1) }}</span>
-        </div>
-        <div class="meta">
+        <component
+          :is="hit.url ? 'a' : 'div'"
+          :href="hit.url ?? undefined"
+          :target="hit.url ? '_blank' : undefined"
+          :rel="hit.url ? 'noopener' : undefined"
+          class="link"
+        >
+          <div class="poster">
+            <img
+              v-if="hit.poster && !brokenPosters.has(hit.poster)"
+              :src="hit.poster"
+              alt=""
+              loading="lazy"
+              decoding="async"
+              @error="brokenPosters.add(hit.poster)"
+            />
+            <span v-else class="placeholder" aria-hidden="true">{{ hit.title.slice(0, 1) }}</span>
+          </div>
           <h2 class="title">{{ hit.title }}</h2>
+        </component>
+        <div class="meta">
           <p class="sub">
             {{ hit.series ? "Serie" : "Film" }}<template v-if="hit.year"> · {{ hit.year }}</template>
             <span v-if="hit.imdbRating" class="rating" :title="`IMDb-betyg ${formatRating(hit.imdbRating)}`">
@@ -236,7 +243,6 @@ function clear() {
             :disabled="syncing"
             @input="onPinInput"
             @keydown.esc="closePin"
-            @blur="!syncing && !pin && closePin()"
           />
           <button
             type="button"
@@ -429,6 +435,22 @@ input::-webkit-search-cancel-button {
   min-width: 0;
 }
 
+.link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+a.link:hover .title {
+  text-decoration: underline;
+}
+
+a.link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+  border-radius: 14px;
+}
+
 .poster {
   display: grid;
   place-items: center;
@@ -451,11 +473,12 @@ input::-webkit-search-cancel-button {
 }
 
 .meta {
-  padding: 8px 2px 0;
+  padding: 0 2px;
 }
 
 .title {
   margin: 0;
+  padding: 8px 2px 0;
   overflow: hidden;
   font-size: 0.95rem;
   font-weight: 600;
