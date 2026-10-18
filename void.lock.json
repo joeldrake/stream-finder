@@ -17,7 +17,8 @@
         "bucket_name": "stream-finder-storage"
       }
     ],
-    "name": "stream-finder"
+    "name": "stream-finder",
+    "compatibility_date": "2026-02-24"
   },
-  "text": "{\n  \"account_id\": \"e81203e98e539367579c23b3d748223d\",\n  \"d1_databases\": [\n    {\n      \"binding\": \"DB\",\n      \"database_name\": \"stream-finder-db\",\n      \"database_id\": \"cfa3f3e3-2016-46de-ac1c-3134bf1dfe51\",\n      \"migrations_dir\": \"./db/migrations\"\n    }\n  ],\n  \"r2_buckets\": [\n    {\n      \"binding\": \"STORAGE\",\n      \"bucket_name\": \"stream-finder-storage\"\n    }\n  ],\n  \"name\": \"stream-finder\"\n}\n"
+  "text": "{\n  \"account_id\": \"e81203e98e539367579c23b3d748223d\",\n  \"d1_databases\": [\n    {\n      \"binding\": \"DB\",\n      \"database_name\": \"stream-finder-db\",\n      \"database_id\": \"cfa3f3e3-2016-46de-ac1c-3134bf1dfe51\",\n      \"migrations_dir\": \"./db/migrations\"\n    }\n  ],\n  \"r2_buckets\": [\n    {\n      \"binding\": \"STORAGE\",\n      \"bucket_name\": \"stream-finder-storage\"\n    }\n  ],\n  \"name\": \"stream-finder\",\n  \"compatibility_date\": \"2026-02-24\"\n}\n"
 }

@@ -266,6 +266,9 @@ function clear() {
         <a href="https://www.imdb.com" rel="noopener">IMDb</a>. Den här tjänsten använder TMDB:s API men är inte
         godkänd eller certifierad av TMDB.
       </p>
+      <p class="attribution">
+        Kontakt: <a href="https://drakeinnovation.se" rel="noopener">drakeinnovation.se</a>
+      </p>
     </footer>
   </main>
 </template>

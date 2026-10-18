@@ -7,6 +7,10 @@
     "build": "vp build",
     "preview": "vp preview",
     "test": "vp test",
+    "release": "void deploy",
+    "logs": "void project logs",
+    "status": "void project status",
+    "secrets": "void secret list",
     "ratings:update": "node --env-file=.env scripts/update-ratings.ts"
   },
   "dependencies": {
