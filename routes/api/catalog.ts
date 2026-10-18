@@ -1,6 +1,6 @@
 import { defineHandler } from "void";
 import { storage } from "void/storage";
-import { CATALOG_KEY, publishCatalog } from "../../src/catalog/store";
+import { CATALOG_KEY, etagMatches, publishCatalog } from "../../src/catalog/store";
 
 export const GET = defineHandler(async (c) => {
   let object = await storage.get(CATALOG_KEY);
@@ -11,7 +11,7 @@ export const GET = defineHandler(async (c) => {
     if (!object) return c.json({ error: "Katalogen kunde inte byggas" }, 500);
   }
 
-  if (c.req.header("if-none-match") === object.httpEtag) {
+  if (etagMatches(c.req.header("if-none-match"), object.httpEtag)) {
     return new Response(null, { status: 304, headers: { etag: object.httpEtag } });
   }
   return new Response(object.body, {
