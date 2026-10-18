@@ -7,7 +7,7 @@
     "build": "vp build",
     "preview": "vp preview",
     "test": "vp test",
-    "release": "void deploy",
+    "deploy": "void deploy",
     "logs": "void project logs",
     "status": "void project status",
     "secrets": "void secret list",
