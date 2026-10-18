@@ -6,4 +6,6 @@ export default defineEnv({
   // Skyddar /api/admin/* (scripts/update-ratings.ts). Minst 32 tecken,
   // till exempel: openssl rand -hex 32
   ADMIN_TOKEN: string(),
+  // PIN-kod (exakt 4 tecken) som krävs för att starta en synkning från UI:t.
+  SYNC_PIN: string(),
 });

@@ -59,3 +59,22 @@ export const imdbRatings = sqliteTable(
   },
   (t) => [index("imdb_ratings_imdb_id_idx").on(t.imdbId)],
 );
+
+// En synkning, startad med knappen i UI:t (POST /api/sync). Stegen körs i
+// ordning: "fetch" (TMDB-sidor och SVT-matchning i köer), "imdb" (IMDb-id i
+// kö) och "publish" (bygg katalogen). pending är antalet kömeddelanden som
+// återstår i det pågående steget; när det når 0 startar nästa steg.
+export const syncRuns = sqliteTable("sync_runs", {
+  id: text("id").primaryKey(),
+  startedAt: text("started_at").notNull(),
+  finishedAt: text("finished_at"),
+  stage: text("stage", { enum: ["starting", "fetch", "imdb", "publish"] }).notNull(),
+  pending: integer("pending").notNull(),
+  error: text("error"),
+});
+
+// Felaktiga PIN-koder till POST /api/sync. Efter för många fel inom en timme
+// spärras synkknappen tillfälligt, så att koden inte kan gissas.
+export const syncPinFailures = sqliteTable("sync_pin_failures", {
+  failedAt: text("failed_at").notNull(),
+});

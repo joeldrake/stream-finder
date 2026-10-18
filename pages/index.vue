@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, shallowRef } from "vue";
-import type { ServiceName } from "../src/catalog/format";
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, shallowRef } from "vue";
+import { SERVICES, type CatalogIndex, type ServiceName } from "../src/catalog/format";
 import { registerServiceWorker } from "../src/register-sw";
 import { indexedDbStore, loadCatalog } from "../src/search/catalog-cache";
 import { createCatalogSearch, MIN_QUERY_LENGTH, type CatalogSearch } from "../src/search/catalog-search";
+import type { SyncStatus } from "../src/sync";
+import { PIN_LENGTH } from "../src/sync-pin";
 
 const SERVICE_LABELS: Record<ServiceName, string> = {
   svt: "SVT Play",
@@ -31,20 +33,114 @@ const status = computed(() => {
   if (!active.value) return `${catalog.value.size.toLocaleString("sv-SE")} filmer och serier`;
   if (tooShort.value) return "Skriv minst två tecken";
   if (results.value.length === 0) return `Inga träffar på ”${query.value.trim()}”`;
+  if (results.value.length) return `Visar ${results.value.length} sökträffar`;
   return "";
 });
 
+function showCatalog(index: CatalogIndex) {
+  if (index.version !== catalog.value?.version) catalog.value = createCatalogSearch(index);
+}
+
 onMounted(async () => {
   void registerServiceWorker();
+  void fetchSyncStatus();
   window.addEventListener("online", () => brokenPosters.clear());
   try {
-    await loadCatalog((index) => {
-      catalog.value = createCatalogSearch(index);
-    }, indexedDbStore);
+    await loadCatalog(showCatalog, indexedDbStore);
   } catch {
     loadError.value = true;
   }
 });
+
+// Synkning: knappen ber om PIN-koden och startar synkningen, och medan den pågår frågar vi efter status
+// var 5:e sekund. När den är klar hämtas den nya katalogen.
+const POLL_MS = 5000;
+const sync = ref<SyncStatus>();
+const syncStarting = ref(false);
+const syncRequestError = ref("");
+const syncing = computed(() => syncStarting.value || !!sync.value?.running);
+const syncError = computed(() => syncRequestError.value || (!syncing.value && sync.value?.last?.error) || "");
+let pollTimer: ReturnType<typeof setTimeout> | undefined;
+onUnmounted(() => clearTimeout(pollTimer));
+
+function applySyncStatus(next: SyncStatus) {
+  const wasRunning = !!sync.value?.running;
+  sync.value = next;
+  clearTimeout(pollTimer);
+  if (next.running) pollTimer = setTimeout(fetchSyncStatus, POLL_MS);
+  else if (wasRunning) void loadCatalog(showCatalog, indexedDbStore).catch(() => {});
+}
+
+async function fetchSyncStatus() {
+  try {
+    const res = await fetch("/api/sync", { cache: "no-store" });
+    if (res.ok) applySyncStatus((await res.json()) as SyncStatus);
+  } catch {
+    // Offline: knappen visas ändå, och nästa försök sker när man trycker.
+  }
+}
+
+const pinOpen = ref(false);
+const pin = ref("");
+const pinInput = ref<HTMLInputElement>();
+
+async function openPin() {
+  pin.value = "";
+  syncRequestError.value = "";
+  pinOpen.value = true;
+  await nextTick();
+  pinInput.value?.focus();
+}
+
+function closePin() {
+  pinOpen.value = false;
+  pin.value = "";
+}
+
+// Synkningen startar när hela koden är inskriven.
+function onPinInput() {
+  if ([...pin.value].length >= PIN_LENGTH) void startSync(pin.value);
+}
+
+async function startSync(code: string) {
+  if (syncing.value) return;
+  syncStarting.value = true;
+  syncRequestError.value = "";
+  try {
+    const res = await fetch("/api/sync", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pin: code }),
+    });
+    const body = (await res.json()) as Partial<SyncStatus> & { error?: string; retryAt?: string };
+    if (res.status === 403) {
+      // Fel kod: fältet står kvar så att man kan försöka igen.
+      syncRequestError.value = "Fel PIN-kod";
+      pin.value = "";
+      await nextTick();
+      pinInput.value?.focus();
+      return;
+    }
+    closePin();
+    if (res.status === 429 && body.retryAt) {
+      syncRequestError.value = `För många försök, spärrad till ${formatTime(body.retryAt)}`;
+    } else if (!res.ok && res.status !== 409) {
+      // 409 betyder att en synkning redan pågår; den följer vi då i stället.
+      syncRequestError.value = body.error ?? `Servern svarade ${res.status}`;
+    }
+    if (body.running !== undefined) applySyncStatus(body as SyncStatus);
+  } catch {
+    closePin();
+    syncRequestError.value = "Kunde inte nå servern";
+  } finally {
+    syncStarting.value = false;
+  }
+}
+
+const formatTime = (iso: string) => new Date(iso).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
+const formatCount = (n: number) => n.toLocaleString("sv-SE");
+const formatDate = (iso: string) =>
+  new Date(iso).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 const formatRating = (rating: number) => rating.toLocaleString("sv-SE", { minimumFractionDigits: 1 });
 
@@ -119,10 +215,51 @@ function clear() {
     </ul>
 
     <footer class="credits">
-      Tillgänglighet från <a href="https://www.justwatch.com/se" rel="noopener">JustWatch</a> via
-      <a href="https://www.themoviedb.org" rel="noopener">TMDB</a> och från SVT Play. Betyg från
-      <a href="https://www.imdb.com" rel="noopener">IMDb</a>. Den här tjänsten använder TMDB:s API men är inte
-      godkänd eller certifierad av TMDB.
+      <div v-if="catalog" class="sync">
+        <span v-for="s in SERVICES" :key="s" class="count">{{ SERVICE_LABELS[s] }} {{ formatCount(catalog.serviceCounts[s]) }}</span>
+        <span class="updated">
+          <template v-if="syncing">Synkar…</template>
+          <template v-else>Uppdaterad {{ formatDate(catalog.version) }}</template>
+          <span v-if="syncError" class="sync-error" :title="syncError" role="status"
+            >· {{ syncRequestError || "senaste synken gav fel" }}</span
+          >
+          <input
+            v-if="pinOpen"
+            ref="pinInput"
+            v-model="pin"
+            class="pin"
+            type="password"
+            :maxlength="PIN_LENGTH"
+            placeholder="PIN"
+            aria-label="PIN-kod för att synka"
+            autocomplete="off"
+            :disabled="syncing"
+            @input="onPinInput"
+            @keydown.esc="closePin"
+            @blur="!syncing && !pin && closePin()"
+          />
+          <button
+            type="button"
+            class="sync-button"
+            :class="{ spinning: syncing }"
+            :disabled="syncing"
+            :title="syncing ? 'Synkar…' : 'Synka nu'"
+            :aria-label="syncing ? 'Synkar' : 'Synka nu'"
+            @click="pinOpen ? closePin() : openPin()"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20 12a8 8 0 1 1-2.34-5.66" />
+              <path d="M20 4v5h-5" />
+            </svg>
+          </button>
+        </span>
+      </div>
+      <p class="attribution">
+        Tillgänglighet från <a href="https://www.justwatch.com/se" rel="noopener">JustWatch</a> via
+        <a href="https://www.themoviedb.org" rel="noopener">TMDB</a> och från SVT Play. Betyg från
+        <a href="https://www.imdb.com" rel="noopener">IMDb</a>. Den här tjänsten använder TMDB:s API men är inte
+        godkänd eller certifierad av TMDB.
+      </p>
     </footer>
   </main>
 </template>
@@ -154,6 +291,10 @@ function clear() {
 
 * {
   box-sizing: border-box;
+}
+
+html {
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -355,6 +496,101 @@ input::-webkit-search-cancel-button {
   color: inherit;
 }
 
+.attribution {
+  margin: 0;
+}
+
+.sync {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 2px 12px;
+  margin-bottom: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.updated {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sync-error {
+  color: #c4111b;
+  cursor: help;
+}
+
+.pin {
+  width: 5.5em;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  text-align: center;
+  box-shadow: none;
+}
+
+.pin::placeholder {
+  letter-spacing: normal;
+}
+
+.pin:focus {
+  border-color: var(--ring);
+  box-shadow: none;
+}
+
+.sync-button {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.sync-button:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--border);
+}
+
+.sync-button:focus-visible {
+  outline: 2px solid var(--ring);
+}
+
+.sync-button:disabled {
+  cursor: default;
+}
+
+.sync-button svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.spinning svg {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Sidfoten syns bara i viloläget, så att den inte ligger över resultaten. */
 .active .credits {
   opacity: 0;
@@ -401,7 +637,8 @@ a.pill:hover {
 @media (prefers-reduced-motion: reduce) {
   .search,
   .logo,
-  .results {
+  .results,
+  .spinning svg {
     transition: none;
     animation: none;
   }

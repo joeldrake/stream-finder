@@ -8,7 +8,7 @@ export function isAuthorized(authorization: string | undefined, token: string | 
 }
 
 // Jämför utan att avslöja via svarstiden hur många tecken som stämmer.
-function constantTimeEqual(a: string, b: string): boolean {
+export function constantTimeEqual(a: string, b: string): boolean {
   const x = new TextEncoder().encode(a);
   const y = new TextEncoder().encode(b);
   let diff = x.length ^ y.length;

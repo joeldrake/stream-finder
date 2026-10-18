@@ -1,5 +1,5 @@
 import MiniSearch from "minisearch";
-import { expandPoster, servicesOf, type CatalogIndex, type ServiceName } from "../catalog/format";
+import { expandPoster, SERVICES, servicesOf, type CatalogIndex, type ServiceName } from "../catalog/format";
 
 export const MIN_QUERY_LENGTH = 2;
 const MAX_RESULTS = 48;
@@ -23,6 +23,10 @@ function normalize(term: string): string {
 
 export interface CatalogSearch {
   size: number;
+  // När katalogen byggdes (ISO-tid).
+  version: string;
+  // Antal titlar per tjänst.
+  serviceCounts: Record<ServiceName, number>;
   search(query: string): SearchHit[];
 }
 
@@ -50,8 +54,15 @@ export function createCatalogSearch(index: CatalogIndex): CatalogSearch {
   });
   mini.addAll(items.map(([, title, alts], i) => ({ i, title, alts })));
 
+  const serviceCounts = Object.fromEntries(SERVICES.map((s) => [s, 0])) as Record<ServiceName, number>;
+  for (const [, , , , , , services] of items) {
+    for (const s of servicesOf(services)) serviceCounts[s]++;
+  }
+
   return {
     size: items.length,
+    version: index.version,
+    serviceCounts,
     search(query) {
       if (query.trim().length < MIN_QUERY_LENGTH) return [];
       return mini

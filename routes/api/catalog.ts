@@ -4,7 +4,7 @@ import { CATALOG_KEY, publishCatalog } from "../../src/catalog/store";
 
 export const GET = defineHandler(async (c) => {
   let object = await storage.get(CATALOG_KEY);
-  // Första gången, innan cron-jobbet har kört: bygg katalogen direkt.
+  // Första gången, innan någon synkning har körts: bygg katalogen direkt.
   if (!object) {
     await publishCatalog(c.env.DB, storage, new Date());
     object = await storage.get(CATALOG_KEY);
@@ -18,7 +18,7 @@ export const GET = defineHandler(async (c) => {
     headers: {
       "content-type": "application/json",
       etag: object.httpEtag,
-      // Katalogen ändras en gång per dygn. no-cache betyder att webbläsaren
+      // Katalogen ändras bara vid en synkning. no-cache betyder att webbläsaren
       // alltid frågar, men får 304 utan innehåll så länge etaggen stämmer.
       "cache-control": "no-cache",
     },

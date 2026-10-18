@@ -1,6 +1,6 @@
 # stream-finder: plan och beslut
 
-Arbetsdokument. Uppdateras när beslut tas eller ändras. Senast uppdaterad 2026-10-17.
+Arbetsdokument. Uppdateras när beslut tas eller ändras. Senast uppdaterad 2026-10-18.
 
 ## Mål
 
@@ -14,7 +14,7 @@ Arbetsdokument. Uppdateras när beslut tas eller ändras. Senast uppdaterad 2026
 
 ```
 TMDB discover (Netflix, Disney+, HBO Max) ─┐
-                                            ├─► cron 1 gång/dygn ─► D1 (titlar + tillgänglighet)
+                                            ├─► synkknapp i UI:t ─► D1 (titlar + tillgänglighet)
 SVT GraphQL (SVT Play) ────────────────────┘                              │
                                                                   bygg index + manifest
                                                                            │
@@ -30,7 +30,7 @@ SVT GraphQL (SVT Play) ───────────────────
 | B1 | Indexet ligger lokalt i klienten och sökningen görs där | Beslutat |
 | B2 | TMDB är källa för Netflix, Disney+ och HBO Max | Beslutat |
 | B3 | SVT:s eget GraphQL-API är källa för SVT Play (hybrid) | Beslutat |
-| B4 | Katalogen uppdateras en gång per dygn | Beslutat |
+| B4 | Katalogen uppdateras manuellt, med en knapp i UI:t (inga cron-jobb) | Beslutat 2026-10-18 |
 | B5 | Sökbiblioteket är MiniSearch, inte Fuse.js | Beslutat |
 | B6 | Stacken är Void (Vite+ + Cloudflare: Workers, D1, cron, köer, storage) med Vue | Beslutat |
 | B7 | Supabase används inte, åtminstone inte till att börja med | Preliminärt |
@@ -130,9 +130,15 @@ Exempelfråga:
 
 **Skyddsnät:** om SVT-anropet misslyckas eller ger misstänkt få titlar (under ~3 000) behålls gårdagens SVT-data och en varning loggas.
 
-### B4: Uppdatering en gång per dygn
+### B4: Manuell synkning
 
-Det räcker för användningen och håller anropen till TMDB och SVT nere. Ett cron-jobb lägger TMDB-sidorna i en kö, eftersom ett enda Worker-anrop inte hinner med 865 anrop.
+Först var planen ett cron-jobb per dygn. **Ändrat 2026-10-18:** inga cron-jobb. Synkningen startas med en knapp i UI:t, så att den bara körs när man själv vill. Knappen ligger i sidfoten bredvid antalet titlar per tjänst och datumet då katalogen senast byggdes (båda räknas ur katalogen i webbläsaren).
+
+- `POST /api/sync` startar en synkning, och `GET /api/sync` visar status. Bara en körning åt gången (annars 409). Ingen inloggning krävs.
+- Varje körning är en rad i `sync_runs` med tre steg: **fetch** (SVT läses in direkt; TMDB-sidorna och SVT-matchningen köas), **imdb** (IMDb-id köas) och **publish** (katalogen byggs). `pending` räknar kömeddelanden som återstår i steget. Köerna räknar ned när meddelanden kvitteras eller gör sitt sista försök, och när räknaren når 0 startar nästa steg. Se [src/sync.ts](../src/sync.ts).
+- Misslyckas SVT körs resten ändå; felet sparas i `sync_runs.error` och visas diskret i UI:t.
+- En körning som inte blivit klar efter 3 timmar räknas som avbruten, och då kan en ny startas.
+- Lokalt 2026-10-18: 748 TMDB-sidor, hela kedjan klar på ~2 minuter.
 
 ### B5: MiniSearch
 
@@ -172,7 +178,7 @@ SVT-titlar saknar ofta TMDB-motsvarighet, så id:n är oberoende av källan:
 
 | Steg | Var | Fil |
 |---|---|---|
-| Hämta IMDb-id för nya TMDB-titlar (`/{kind}/{id}/external_ids`) | Workern: cron 04:45 + kön `imdb-ids` | [src/ingest/imdb.ts](../src/ingest/imdb.ts) |
+| Hämta IMDb-id för nya TMDB-titlar (`/{kind}/{id}/external_ids`) | Workern: synkningens imdb-steg + kön `imdb-ids` | [src/ingest/imdb.ts](../src/ingest/imdb.ts) |
 | Ladda ned IMDb-filen och filtrera på våra id:n | **Din dator:** `pnpm ratings:update` | [scripts/update-ratings.ts](../scripts/update-ratings.ts) |
 | Spara betygen | Workern: `POST /api/admin/ratings` | [routes/api/admin/ratings.ts](../routes/api/admin/ratings.ts) |
 
@@ -221,7 +227,7 @@ En kompakt rad per titel: `[id, titel, originaltitel (tom om samma), år, popula
 - [ ] Hur många SVT-titlar matchar mot TMDB med strategin under B8?
 - [ ] Går de 333 titlarna som bara finns i `allTitlesForSearchIndexer` att se?
 - [ ] Hur många av TMDB:s titlar för Netflix, Disney+ och HBO Max är inaktuella, alltså samma problem som de 570 för SVT?
-- [x] Hur sköter Void schemalagda jobb och köer? Cron-jobb ligger i `crons/*.ts` (`export const cron` + `defineScheduled`), köer i `queues/*.ts` (`defineQueue<T>`) och skickas med `queues.<namn>.send()`. Lokalt triggas de via `POST /__void/scheduled` och `/__void/queue` med den token som dev-servern skriver ut. Det finns ingen dead-letter-kö som standard.
+- [x] Hur sköter Void schemalagda jobb och köer? Cron-jobb ligger i `crons/*.ts` (`export const cron` + `defineScheduled`), köer i `queues/*.ts` (`defineQueue<T>`) och skickas med `queues.<namn>.send()`. Lokalt triggas de via `POST /__void/scheduled` och `/__void/queue` med den token som dev-servern skriver ut. Det finns ingen dead-letter-kö som standard. (Cron används inte längre, se B4.)
 - [x] Var och hur visar vi attributionen till JustWatch och TMDB? I en sidfot i viloläget, se avsnittet IMDb-betyg. TMDB:s logotyp saknas fortfarande; kontrollera deras krav på attribution före lansering.
 - [ ] Kräver IMDb attribution? Datasidan säger inget, men licenssidan bör kontrolleras. Sidfoten anger redan "Betyg från IMDb".
 - [ ] Ska nyheter, sport och samhällsprogram från SVT (till exempel "Svenska nyheter" och "Bordtennis-EM") vara sökbara? I dag kommer de med. SVT:s `titleType` sparas inte, så om vi vill filtrera på typ måste den läggas till i schemat.
@@ -232,22 +238,21 @@ En kompakt rad per titel: `[id, titel, originaltitel (tom om samma), år, popula
 
 **Tester:** kör `pnpm test`. Vitest använder [vitest.config.ts](../vitest.config.ts) utan `voidPlugin()`, eftersom Cloudflare-pluginet inte går att starta i Vitest. Importera från `vite-plus/test`, inte från `vitest`. SQL-upserten testas mot riktig SQLite (`node:sqlite`) med migrationerna i `db/migrations`.
 
-**Köra ett cron-jobb lokalt:** med `pnpm dev` igång:
+**Synka lokalt:** med `pnpm dev` igång, tryck på knappen i sidfoten eller kör:
 ```
-curl -X POST http://localhost:5173/__void/scheduled -H "Content-Type: application/json" \
-  -H "x-void-dev-trigger: $(cat .void/dev-trigger-token)" \
-  -d '{"cron":"0 4 * * *","scheduledTime":'"$(date +%s000)"'}'
+curl -X POST http://localhost:5173/api/sync   # starta
+curl http://localhost:5173/api/sync           # status
 ```
 
 ## Nästa steg
 
 1. ~~Sätt upp ett Void-projekt med Vue.~~ Klart 2026-10-17: schemat `titles`/`availability` är migrerat och startsidan visar antal titlar.
 2. Inläsning: SVT-jobb, TMDB-jobb via kö, upsert till D1.
-   - ~~SVT-jobbet~~ Klart 2026-10-17: [crons/ingest-svt.ts](../crons/ingest-svt.ts) körs 04:00 UTC, logiken ligger i [src/ingest/svt.ts](../src/ingest/svt.ts). Upsert sker med `json_each`, så att en hel chunk om 1 000 rader går i en fråga. Det håller nere antalet D1-frågor per körning. En lokal körning tar ~0,7 s.
-   - ~~TMDB-jobbet via kö~~ Klart 2026-10-17: [crons/ingest-tmdb.ts](../crons/ingest-tmdb.ts) körs 04:15 UTC. Det hämtar sida 1 för varje kombination av tjänst och typ och lägger alla sidor på kön `tmdb-pages` med `sendBatch` (max 100 per anrop). [queues/tmdb-pages.ts](../queues/tmdb-pages.ts) hämtar 10 sidor per batch och sparar dem. Sidor som misslyckas försöks igen, efter 10 s vid 429 och annars efter 30 s. Logiken ligger i [src/ingest/tmdb.ts](../src/ingest/tmdb.ts). Sorteringen är `original_title.asc`/`original_name.asc` i stället för popularitet, så att titlar inte flyttar mellan sidor under körningen. Posters sparas som full URL (`w342`).
+   - ~~SVT-jobbet~~ Klart 2026-10-17: SVT läses in i synkningens första steg (först ett cron-jobb, borttaget 2026-10-18, se B4). Logiken ligger i [src/ingest/svt.ts](../src/ingest/svt.ts). Upsert sker med `json_each`, så att en hel chunk om 1 000 rader går i en fråga. Det håller nere antalet D1-frågor per körning. En lokal körning tar ~0,7 s.
+   - ~~TMDB-jobbet via kö~~ Klart 2026-10-17: Synkningens första steg hämtar sida 1 för varje kombination av tjänst och typ och lägger alla sidor på kön `tmdb-pages` med `sendBatch` (max 100 per anrop). [queues/tmdb-pages.ts](../queues/tmdb-pages.ts) hämtar 10 sidor per batch och sparar dem. Sidor som misslyckas försöks igen, efter 10 s vid 429 och annars efter 30 s. Logiken ligger i [src/ingest/tmdb.ts](../src/ingest/tmdb.ts). Sorteringen är `original_title.asc`/`original_name.asc` i stället för popularitet, så att titlar inte flyttar mellan sidor under körningen. Posters sparas som full URL (`w342`).
    - **Första lokala körningen:** 748 sidor gick igenom på ~2 minuter utan fel eller 429. Netflix 9 208, Disney+ 3 485 och HBO Max 2 217 stämmer exakt med TMDB:s totaler. Tillsammans med SVT blev det 18 316 titlar, varav 553 finns på mer än en tjänst. SVT:s titlar är ännu inte matchade mot TMDB, se steg 3.
-3. ~~Matchning mellan SVT och TMDB~~ Klart 2026-10-17. [crons/match-svt.ts](../crons/match-svt.ts) körs 04:30 UTC och köar SVT-titlar som aldrig sökts, plus omatchade äldre än 30 dagar, 10 per meddelande. [queues/svt-match.ts](../queues/svt-match.ts) söker i TMDB:s `/search/movie` och `/search/tv` (`language=sv-SE`, originaltitel först) och sparar i tabellen `svt_matches`, även missar. Regler, se [src/ingest/match.ts](../src/ingest/match.ts): exakt normaliserad titel bland de 5 första träffarna, och för filmer dessutom år ±1. **Resultat: 2 217 av 3 972 (56 %) matchade.** I ett stickprov på 37 matchningar var alla rätt. Missarna är främst nyheter, sport och mindre svenska program.
-4. ~~Bygg index~~ Klart 2026-10-17. [crons/build-catalog.ts](../crons/build-catalog.ts) körs 05:00 UTC och sparar katalogen i R2 (`catalog/latest.json`). [routes/api/catalog.ts](../routes/api/catalog.ts) serverar den med ETag och `no-cache`, så att webbläsaren får 304 så länge katalogen är oförändrad. Om filen saknas byggs den direkt. Sammanslagningen ligger i [src/catalog/build.ts](../src/catalog/build.ts): en SVT-titel som matchar en TMDB-titel i katalogen får SVT som extra tjänst, och annars blir den en egen post med TMDB:s affisch och år. Formatet beskrivs i [src/catalog/format.ts](../src/catalog/format.ts). **18 220 titlar, 1,9 MB okomprimerat och 895 kB med gzip.** 90 titlar finns på SVT och minst en annan tjänst.
+3. ~~Matchning mellan SVT och TMDB~~ Klart 2026-10-17. Synkningens första steg köar SVT-titlar som aldrig sökts, plus omatchade äldre än 30 dagar, 10 per meddelande. [queues/svt-match.ts](../queues/svt-match.ts) söker i TMDB:s `/search/movie` och `/search/tv` (`language=sv-SE`, originaltitel först) och sparar i tabellen `svt_matches`, även missar. Regler, se [src/ingest/match.ts](../src/ingest/match.ts): exakt normaliserad titel bland de 5 första träffarna, och för filmer dessutom år ±1. **Resultat: 2 217 av 3 972 (56 %) matchade.** I ett stickprov på 37 matchningar var alla rätt. Missarna är främst nyheter, sport och mindre svenska program.
+4. ~~Bygg index~~ Klart 2026-10-17. Synkningens sista steg sparar katalogen i R2 (`catalog/latest.json`). [routes/api/catalog.ts](../routes/api/catalog.ts) serverar den med ETag och `no-cache`, så att webbläsaren får 304 så länge katalogen är oförändrad. Om filen saknas byggs den direkt. Sammanslagningen ligger i [src/catalog/build.ts](../src/catalog/build.ts): en SVT-titel som matchar en TMDB-titel i katalogen får SVT som extra tjänst, och annars blir den en egen post med TMDB:s affisch och år. Formatet beskrivs i [src/catalog/format.ts](../src/catalog/format.ts). **18 220 titlar, 1,9 MB okomprimerat och 895 kB med gzip.** 90 titlar finns på SVT och minst en annan tjänst.
 5. ~~Vue-klient med MiniSearch~~ Första versionen klar 2026-10-17, se [pages/index.vue](../pages/index.vue) och [src/search/catalog-search.ts](../src/search/catalog-search.ts). Sökrutan är rundad och centrerad och glider upp till toppen vid fokus. Resultaten visas medan man skriver, från 2 tecken, som ett rutnät med posters och färgade tjänstebadgar. SVT-badgen länkar direkt till svtplay.se. En sökning tar ~0,4 ms. Fuzzy-matchning gäller bara ord med minst 5 tecken.
    - **IndexedDB** (2026-10-17): [src/search/catalog-cache.ts](../src/search/catalog-cache.ts) sparar katalogen som JSON-text tillsammans med ETaggen (databasen `stream-finder`, lagret `catalog`, nyckeln `latest`). Vid start visas den sparade katalogen direkt. Sedan frågar sidan servern med `If-None-Match` och `cache: "no-store"`; vid 304 är den klar, och vid en ny version byts katalogen ut och sparas. Om IndexedDB inte fungerar faller sidan tillbaka på nätet. Uppmätt med simulerad 4G i dev-läge: 5,2 s tills sökningen fungerar vid första besöket, 1,2 s med cache. 
    - **Service worker** (2026-10-17): [public/sw.js](../public/sw.js) registreras bara i produktionsbygget ([src/register-sw.ts](../src/register-sw.ts)). Sidan `/` hämtas från nätet först och från cachen om nätet saknas eller dröjer mer än 3 s. `/assets/*` hämtas från cachen först, med max 60 filer där de äldsta tas bort först. `/api/catalog` och posters rör den inte: katalogen ligger i IndexedDB, och bild-CDN:erna har ett års `cache-control`, så HTTP-cachen sparar redan bilderna. SVT:s bilder saknar dessutom CORS och skulle bli opaka svar som tar upp onödigt stor lagringskvot. Efter registreringen skickar sidan de assets den redan har laddat, så att offline fungerar redan efter första besöket. Verifierat i Chrome med `vp build` + `vp preview`: offline laddas sidan om, sökningen fungerar, sedda affischer syns och osedda visar initialen. **Om sw.js ändras i framtiden:** höj `VERSION`, så att gamla cachar rensas.
