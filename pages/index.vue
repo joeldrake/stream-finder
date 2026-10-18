@@ -369,8 +369,6 @@ body {
 @media (max-width: 640px) {
   .logo,
   .active .logo {
-    margin-bottom: 12px;
-    font-size: 1.5rem;
     opacity: 1;
     transition: none;
   }
@@ -684,6 +682,68 @@ a.pill:hover {
 }
 .hbomax {
   background: #5a2bd0;
+}
+
+/* Mobil: smalare sökruta och tätare resultat så att träffarna syns
+   ovanför skärmtangentbordet medan man skriver. */
+@media (max-width: 640px) {
+  .search {
+    padding-top: 10px;
+  }
+
+  .logo,
+  .active .logo {
+    margin-bottom: 8px;
+    font-size: 1.25rem;
+  }
+
+  .icon {
+    left: 16px;
+    width: 18px;
+    height: 18px;
+  }
+
+  input {
+    height: 44px;
+    padding: 0 16px 0 42px;
+    /* Minst 16px, annars zoomar iOS in vid fokus. */
+    font-size: 1rem;
+  }
+
+  .status {
+    min-height: 1.3em;
+    margin-top: 6px;
+    font-size: 0.8rem;
+  }
+
+  .results {
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 12px 10px;
+    margin-top: 4px;
+  }
+
+  .poster {
+    border-radius: 10px;
+  }
+
+  .placeholder {
+    font-size: 1.75rem;
+  }
+
+  .title {
+    padding-top: 6px;
+    font-size: 0.8rem;
+  }
+
+  .sub {
+    margin: 1px 0 4px;
+    font-size: 0.7rem;
+  }
+
+  .pill {
+    padding: 1px 6px;
+    font-size: 0.62rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
