@@ -165,10 +165,14 @@ function clear() {
           placeholder="Sök film eller serie"
           aria-label="Sök film eller serie"
           autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
           spellcheck="false"
+          enterkeyhint="search"
           @focus="focused = true"
           @blur="focused = false"
           @keydown.esc="clear"
+          @keydown.enter="input?.blur()"
         />
       </div>
       <p class="status" aria-live="polite">{{ status }}</p>
@@ -236,6 +240,8 @@ function clear() {
             v-model="pin"
             class="pin"
             type="password"
+            inputmode="numeric"
+            pattern="[0-9]*"
             :maxlength="PIN_LENGTH"
             placeholder="PIN"
             aria-label="PIN-kod för att synka"
