@@ -261,12 +261,6 @@ function clear() {
         </span>
       </div>
       <p class="attribution">
-        Tillgänglighet från <a href="https://www.justwatch.com/se" rel="noopener">JustWatch</a> via
-        <a href="https://www.themoviedb.org" rel="noopener">TMDB</a> och från SVT Play. Betyg från
-        <a href="https://www.imdb.com" rel="noopener">IMDb</a>. Den här tjänsten använder TMDB:s API men är inte
-        godkänd eller certifierad av TMDB.
-      </p>
-      <p class="attribution">
         <a class="github-link" href="https://github.com/joeldrake/stream-finder" rel="noopener">
           <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor">
             <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
@@ -333,14 +327,24 @@ body {
   max-width: 720px;
   margin: 0 auto;
   padding: 16px 0 8px;
-  /* Viloläget: sökrutan centrerad i fönstret. */
-  transform: translateY(calc(50dvh - 50% - 8px));
-  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+  background: linear-gradient(var(--bg) 85%, transparent);
 }
 
-.active .search {
-  transform: translateY(0);
-  background: linear-gradient(var(--bg) 85%, transparent);
+/* På desktop är sökrutan centrerad i viloläget och glider upp vid sökning.
+   På mobil ligger den längst upp från start. */
+@media (min-width: 641px) {
+  .search {
+    transform: translateY(calc(50dvh - 50% - 8px));
+    transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .page:not(.active) .search {
+    background: none;
+  }
+
+  .active .search {
+    transform: translateY(0);
+  }
 }
 
 .logo {
@@ -359,6 +363,17 @@ body {
   margin-bottom: 12px;
   font-size: 1.1rem;
   opacity: 0.7;
+}
+
+/* På mobil hålls loggan i ett läge så att sökrutan inte flyttar sig vid fokus. */
+@media (max-width: 640px) {
+  .logo,
+  .active .logo {
+    margin-bottom: 12px;
+    font-size: 1.5rem;
+    opacity: 1;
+    transition: none;
+  }
 }
 
 .field {
