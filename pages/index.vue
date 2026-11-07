@@ -26,6 +26,7 @@ const brokenPosters = reactive(new Set<string>());
 const active = computed(() => focused.value || query.value.length > 0);
 const tooShort = computed(() => query.value.trim().length < MIN_QUERY_LENGTH);
 const results = computed(() => catalog.value?.search(query.value) ?? []);
+const showResults = computed(() => active.value && !tooShort.value && results.value.length > 0);
 
 const status = computed(() => {
   if (loadError.value) return "Kunde inte ladda katalogen. Ladda om sidan för att försöka igen.";
@@ -64,28 +65,13 @@ function onTouchMove(event: TouchEvent) {
   input.value?.blur();
 }
 
-// Medan tangentbordet är öppet panorerar iOS den synliga ytan inuti sidan, och den
-// klistrade sökrutan följer sidan i stället för skärmen. Släpps fokus mitt i en scroll
-// ändras förskjutningen medan tangentbordet stängs, så att sökrutan blinkar och träffar
-// syns ovanför den. Vi flyttar därför sökrutan lika mycket som ytan är förskjuten.
-const header = ref<HTMLElement>();
-
-function onViewportChange() {
-  const offset = Math.max(0, window.visualViewport?.offsetTop ?? 0);
-  header.value?.style.setProperty("--viewport-offset", `${offset}px`);
-}
-
 onMounted(() => {
   document.addEventListener("touchstart", onTouchStart, { passive: true });
   document.addEventListener("touchmove", onTouchMove, { passive: true });
-  window.visualViewport?.addEventListener("scroll", onViewportChange);
-  window.visualViewport?.addEventListener("resize", onViewportChange);
 });
 onUnmounted(() => {
   document.removeEventListener("touchstart", onTouchStart);
   document.removeEventListener("touchmove", onTouchMove);
-  window.visualViewport?.removeEventListener("scroll", onViewportChange);
-  window.visualViewport?.removeEventListener("resize", onViewportChange);
 });
 
 function showCatalog(index: CatalogIndex) {
@@ -208,8 +194,8 @@ function clearAndFocus() {
 </script>
 
 <template>
-  <main class="page" :class="{ active }">
-    <header ref="header" class="search">
+  <main class="page" :class="{ active, 'has-results': showResults }">
+    <header class="search">
       <h1 class="logo">Stream Finder</h1>
       <div class="field">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -249,52 +235,54 @@ function clearAndFocus() {
       <p class="status" aria-live="polite">{{ status }}</p>
     </header>
 
-    <ul v-if="active && !tooShort && results.length" class="results">
-      <li v-for="hit in results" :key="hit.id" class="card">
-        <component
-          :is="hit.url ? 'a' : 'div'"
-          :href="hit.url ?? undefined"
-          :target="hit.url ? '_blank' : undefined"
-          :rel="hit.url ? 'noopener' : undefined"
-          class="link"
-        >
-          <div class="poster">
-            <img
-              v-if="hit.poster && !brokenPosters.has(hit.poster)"
-              :src="hit.poster"
-              alt=""
-              loading="lazy"
-              decoding="async"
-              @error="brokenPosters.add(hit.poster)"
-            />
-            <span v-else class="placeholder" aria-hidden="true">{{ hit.title.slice(0, 1) }}</span>
-          </div>
-          <h2 class="title">{{ hit.title }}</h2>
-        </component>
-        <div class="meta">
-          <p class="sub">
-            {{ hit.series ? "Serie" : "Film" }}<template v-if="hit.year"> · {{ hit.year }}</template>
-            <span v-if="hit.imdbRating" class="rating" :title="`IMDb-betyg ${formatRating(hit.imdbRating)}`">
-              · <span aria-hidden="true">★</span> {{ formatRating(hit.imdbRating) }}</span
-            >
-          </p>
-          <ul class="services">
-            <li v-for="s in hit.services" :key="s">
-              <a
-                v-if="s === 'svt' && hit.svtUrl"
-                :href="hit.svtUrl"
-                class="pill"
-                :class="s"
-                target="_blank"
-                rel="noopener"
-                >{{ SERVICE_LABELS[s] }}</a
+    <div class="scroller">
+      <ul v-if="showResults" class="results">
+        <li v-for="hit in results" :key="hit.id" class="card">
+          <component
+            :is="hit.url ? 'a' : 'div'"
+            :href="hit.url ?? undefined"
+            :target="hit.url ? '_blank' : undefined"
+            :rel="hit.url ? 'noopener' : undefined"
+            class="link"
+          >
+            <div class="poster">
+              <img
+                v-if="hit.poster && !brokenPosters.has(hit.poster)"
+                :src="hit.poster"
+                alt=""
+                loading="lazy"
+                decoding="async"
+                @error="brokenPosters.add(hit.poster)"
+              />
+              <span v-else class="placeholder" aria-hidden="true">{{ hit.title.slice(0, 1) }}</span>
+            </div>
+            <h2 class="title">{{ hit.title }}</h2>
+          </component>
+          <div class="meta">
+            <p class="sub">
+              {{ hit.series ? "Serie" : "Film" }}<template v-if="hit.year"> · {{ hit.year }}</template>
+              <span v-if="hit.imdbRating" class="rating" :title="`IMDb-betyg ${formatRating(hit.imdbRating)}`">
+                · <span aria-hidden="true">★</span> {{ formatRating(hit.imdbRating) }}</span
               >
-              <span v-else class="pill" :class="s">{{ SERVICE_LABELS[s] }}</span>
-            </li>
-          </ul>
-        </div>
-      </li>
-    </ul>
+            </p>
+            <ul class="services">
+              <li v-for="s in hit.services" :key="s">
+                <a
+                  v-if="s === 'svt' && hit.svtUrl"
+                  :href="hit.svtUrl"
+                  class="pill"
+                  :class="s"
+                  target="_blank"
+                  rel="noopener"
+                  >{{ SERVICE_LABELS[s] }}</a
+                >
+                <span v-else class="pill" :class="s">{{ SERVICE_LABELS[s] }}</span>
+              </li>
+            </ul>
+          </div>
+        </li>
+      </ul>
+    </div>
 
     <footer class="credits">
       <div v-if="catalog" class="sync">
@@ -378,8 +366,13 @@ function clearAndFocus() {
   box-sizing: border-box;
 }
 
-html {
-  scrollbar-gutter: stable;
+/* Själva sidan scrollar aldrig, bara träfflistan. Annars flyttar iOS den klistrade
+   sökrutan när sidan studsar mot botten eller panoreras medan tangentbordet stängs. */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body {
@@ -393,18 +386,24 @@ body {
 
 <style scoped>
 .page {
-  min-height: 100dvh;
-  padding: 0 16px 48px;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
 }
 
 .search {
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 1;
+  flex: none;
+  padding: 16px 16px 8px;
+  background: var(--bg);
+}
+
+/* Headern täcker hela bredden, men sökrutan och statusraden håller sin bredd. */
+.field,
+.status {
   max-width: 720px;
-  margin: 0 auto;
-  padding: 16px 0 8px;
-  background: linear-gradient(var(--bg) 85%, transparent);
+  margin-inline: auto;
 }
 
 /* På desktop är sökrutan centrerad i viloläget och glider upp vid sökning.
@@ -543,10 +542,20 @@ input::-webkit-search-cancel-button {
 
 .status {
   min-height: 1.45em;
-  margin: 12px 0 0;
+  margin-top: 12px;
+  margin-bottom: 0;
   text-align: center;
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+.scroller {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 0 16px 48px;
 }
 
 .results {
@@ -764,8 +773,8 @@ a.link:focus-visible {
   }
 }
 
-/* Sidfoten syns bara i viloläget, så att den inte ligger över resultaten. */
-.active .credits {
+/* Sidfoten döljs när det finns träffar, så att den inte ligger över dem. */
+.has-results .credits {
   opacity: 0;
   pointer-events: none;
 }
@@ -812,7 +821,6 @@ a.pill:hover {
 @media (max-width: 640px) {
   .search {
     padding-top: 10px;
-    transform: translateY(var(--viewport-offset, 0px));
   }
 
   .logo,
