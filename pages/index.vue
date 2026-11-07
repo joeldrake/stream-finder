@@ -179,7 +179,10 @@ const formatCount = (n: number) => n.toLocaleString("sv-SE");
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
-const formatRating = (rating: number) => rating.toLocaleString("sv-SE", { minimumFractionDigits: 1 });
+declare const __BUILD_TIME__: string;
+const buildTime = formatDate(__BUILD_TIME__);
+
+const formatRating =(rating: number) => rating.toLocaleString("sv-SE", { minimumFractionDigits: 1 });
 
 function clear() {
   query.value = "";
@@ -289,7 +292,7 @@ function clearAndFocus() {
         <span v-for="s in SERVICES" :key="s" class="count">{{ SERVICE_LABELS[s] }} {{ formatCount(catalog.serviceCounts[s]) }}</span>
         <span class="updated">
           <template v-if="syncing">Synkar…</template>
-          <template v-else>Uppdaterad {{ formatDate(catalog.version) }}</template>
+          <template v-else>Data synkad {{ formatDate(catalog.version) }}</template>
           <span v-if="syncError" class="sync-error" :title="syncError" role="status"
             >· {{ syncRequestError || "senaste synken gav fel" }}</span
           >
@@ -332,6 +335,7 @@ function clearAndFocus() {
           </svg>
           github.com/joeldrake/stream-finder
         </a>
+        · Deployad {{ buildTime }}
       </p>
     </footer>
   </main>
