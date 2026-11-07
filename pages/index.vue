@@ -695,6 +695,14 @@ a.link:focus-visible {
   box-shadow: none;
 }
 
+/* iOS zoomar in på fält med mindre text än 16px när de får fokus. */
+@media (pointer: coarse) {
+  .pin {
+    height: 28px;
+    font-size: 16px;
+  }
+}
+
 .sync-button {
   display: inline-grid;
   place-items: center;
