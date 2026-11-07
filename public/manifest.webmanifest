@@ -1,0 +1,15 @@
+{
+  "name": "Stream Finder",
+  "short_name": "Stream Finder",
+  "description": "Sök bland filmer och serier på SVT Play, Netflix, Disney+ och HBO Max.",
+  "lang": "sv",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#111114",
+  "theme_color": "#111114",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

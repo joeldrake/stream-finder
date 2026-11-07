@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2a2a33"/>
+      <stop offset="1" stop-color="#101014"/>
+    </linearGradient>
+    <linearGradient id="play" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffcf4d"/>
+      <stop offset="1" stop-color="#ff7a3d"/>
+    </linearGradient>
+  </defs>
+  <!-- Fyrkant utan rundade hörn: iOS och Android rundar själva. Motivet håller sig inom
+       mittersta 80 % så att det klarar maskerade ikoner. -->
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <circle cx="226" cy="226" r="104" fill="none" stroke="#fff" stroke-width="34"/>
+  <path d="M302 302l78 78" stroke="#fff" stroke-width="40" stroke-linecap="round"/>
+  <path d="M200 176v100a8 8 0 0 0 12 7l84-50a8 8 0 0 0 0-14l-84-50a8 8 0 0 0-12 7z" fill="url(#play)"/>
+</svg>
