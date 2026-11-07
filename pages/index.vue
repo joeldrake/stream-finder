@@ -64,13 +64,28 @@ function onTouchMove(event: TouchEvent) {
   input.value?.blur();
 }
 
+// Medan tangentbordet är öppet panorerar iOS den synliga ytan inuti sidan, och den
+// klistrade sökrutan följer sidan i stället för skärmen. Släpps fokus mitt i en scroll
+// ändras förskjutningen medan tangentbordet stängs, så att sökrutan blinkar och träffar
+// syns ovanför den. Vi flyttar därför sökrutan lika mycket som ytan är förskjuten.
+const header = ref<HTMLElement>();
+
+function onViewportChange() {
+  const offset = Math.max(0, window.visualViewport?.offsetTop ?? 0);
+  header.value?.style.setProperty("--viewport-offset", `${offset}px`);
+}
+
 onMounted(() => {
   document.addEventListener("touchstart", onTouchStart, { passive: true });
   document.addEventListener("touchmove", onTouchMove, { passive: true });
+  window.visualViewport?.addEventListener("scroll", onViewportChange);
+  window.visualViewport?.addEventListener("resize", onViewportChange);
 });
 onUnmounted(() => {
   document.removeEventListener("touchstart", onTouchStart);
   document.removeEventListener("touchmove", onTouchMove);
+  window.visualViewport?.removeEventListener("scroll", onViewportChange);
+  window.visualViewport?.removeEventListener("resize", onViewportChange);
 });
 
 function showCatalog(index: CatalogIndex) {
@@ -194,7 +209,7 @@ function clearAndFocus() {
 
 <template>
   <main class="page" :class="{ active }">
-    <header class="search">
+    <header ref="header" class="search">
       <h1 class="logo">Stream Finder</h1>
       <div class="field">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -797,6 +812,7 @@ a.pill:hover {
 @media (max-width: 640px) {
   .search {
     padding-top: 10px;
+    transform: translateY(var(--viewport-offset, 0px));
   }
 
   .logo,
