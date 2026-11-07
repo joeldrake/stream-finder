@@ -47,6 +47,16 @@ function onTouchStart(event: TouchEvent) {
   touchStartY = focused.value && !inField ? event.touches[0].clientY : undefined;
 }
 
+// iOS scrollar sidan när en input får fokus, även om den redan syns. Är man nedscrollad
+// hoppar den klistrade sökrutan då upp och glider sedan tillbaka. Vi tar därför över
+// tryck på en ofokuserad sökruta och fokuserar själva utan scroll. Tangentbordet öppnas
+// ändå, eftersom det sker i samma tryck.
+function onInputTouchEnd(event: TouchEvent) {
+  if (focused.value) return;
+  event.preventDefault();
+  input.value?.focus({ preventScroll: true });
+}
+
 function onTouchMove(event: TouchEvent) {
   if (touchStartY === undefined) return;
   if (Math.abs(event.touches[0].clientY - touchStartY) < SCROLL_BLUR_PX) return;
@@ -178,7 +188,7 @@ function clear() {
 // Rensar men behåller fokus, så att man kan skriva en ny sökning direkt.
 function clearAndFocus() {
   query.value = "";
-  input.value?.focus();
+  input.value?.focus({ preventScroll: true });
 }
 </script>
 
@@ -206,6 +216,7 @@ function clearAndFocus() {
           @blur="focused = false"
           @keydown.esc="clear"
           @keydown.enter="input?.blur()"
+          @touchend="onInputTouchEnd"
         />
         <button
           v-if="query"
