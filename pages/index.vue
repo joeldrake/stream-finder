@@ -335,7 +335,7 @@ function clearAndFocus() {
           </svg>
           github.com/joeldrake/stream-finder
         </a>
-        · Deployad {{ buildTime }}
+        <span>· Deployad {{ buildTime }}</span>
       </p>
     </footer>
   </main>
@@ -668,7 +668,13 @@ a.link:focus-visible {
   color: inherit;
 }
 
+/* Flex så att länken med ikon och texten efter den centreras på samma höjd. */
 .attribution {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.35em;
   margin: 0;
 }
 
