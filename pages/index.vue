@@ -36,6 +36,33 @@ const status = computed(() => {
   return "";
 });
 
+// Släpp fokus när man drar för att scrolla bland träffarna, så att skärmtangentbordet
+// försvinner. Vi lyssnar på touch och inte på scroll, eftersom iOS själv scrollar sidan
+// när tangentbordet öppnas. Tröskeln gör att vanliga tryck inte räknas.
+const SCROLL_BLUR_PX = 10;
+let touchStartY: number | undefined;
+
+function onTouchStart(event: TouchEvent) {
+  const inField = event.target instanceof Element && event.target.closest(".field");
+  touchStartY = focused.value && !inField ? event.touches[0].clientY : undefined;
+}
+
+function onTouchMove(event: TouchEvent) {
+  if (touchStartY === undefined) return;
+  if (Math.abs(event.touches[0].clientY - touchStartY) < SCROLL_BLUR_PX) return;
+  touchStartY = undefined;
+  input.value?.blur();
+}
+
+onMounted(() => {
+  document.addEventListener("touchstart", onTouchStart, { passive: true });
+  document.addEventListener("touchmove", onTouchMove, { passive: true });
+});
+onUnmounted(() => {
+  document.removeEventListener("touchstart", onTouchStart);
+  document.removeEventListener("touchmove", onTouchMove);
+});
+
 function showCatalog(index: CatalogIndex) {
   if (index.version !== catalog.value?.version) catalog.value = createCatalogSearch(index);
 }
@@ -147,6 +174,12 @@ function clear() {
   query.value = "";
   input.value?.blur();
 }
+
+// Rensar men behåller fokus, så att man kan skriva en ny sökning direkt.
+function clearAndFocus() {
+  query.value = "";
+  input.value?.focus();
+}
 </script>
 
 <template>
@@ -174,6 +207,18 @@ function clear() {
           @keydown.esc="clear"
           @keydown.enter="input?.blur()"
         />
+        <button
+          v-if="query"
+          type="button"
+          class="clear"
+          aria-label="Rensa sökningen"
+          @pointerdown.prevent
+          @click="clearAndFocus"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6l12 12M18 6 6 18" />
+          </svg>
+        </button>
       </div>
       <p class="status" aria-live="polite">{{ status }}</p>
     </header>
@@ -401,7 +446,7 @@ body {
 input {
   width: 100%;
   height: 64px;
-  padding: 0 24px 0 58px;
+  padding: 0 64px 0 58px;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--surface);
@@ -428,8 +473,46 @@ input:focus {
     0 0 0 4px color-mix(in srgb, var(--ring) 18%, transparent);
 }
 
+/* Webbläsarens eget kryss syns bara vid fokus (och inte alls i iOS Safari),
+   så vi visar ett eget så fort det finns text. */
 input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.clear {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
   cursor: pointer;
+  transform: translateY(-50%);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.clear:hover,
+.clear:focus-visible {
+  color: var(--text);
+}
+
+.clear:focus-visible {
+  outline: 2px solid var(--ring);
+}
+
+.clear svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
 }
 
 .status {
@@ -711,9 +794,20 @@ a.pill:hover {
 
   input {
     height: 44px;
-    padding: 0 16px 0 42px;
+    padding: 0 44px 0 42px;
     /* Minst 16px, annars zoomar iOS in vid fokus. */
     font-size: 1rem;
+  }
+
+  .clear {
+    right: 2px;
+    width: 40px;
+    height: 40px;
+  }
+
+  .clear svg {
+    width: 18px;
+    height: 18px;
   }
 
   .status {
